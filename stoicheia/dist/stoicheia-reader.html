@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F7F4EC">
+  <meta name="description" content="Read Euclid's Elements in Greek. Tap a form to see its lemma and grammatical analysis.">
+  <title>Στοιχεῖα Reader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gentium+Plus:wght@400;700&display=swap">
+  <style>
+
+:root {
+  --paper: #F7F4EC;
+  --surface: #FFFFFF;
+  --ink: #20211F;
+  --muted: #6B6A63;
+  --slate: #2F4A60;
+  --selection: #EEE3B9;
+  --hairline: rgba(32, 33, 31, 0.12);
+  --scrim: rgba(20, 20, 18, 0.28);
+  --shadow: 0 -6px 24px rgba(20, 20, 18, 0.12);
+  --greek: 'Gentium Plus', 'Gentium Book Plus', serif;
+  --ui: system-ui, Roboto, 'Segoe UI', sans-serif;
+  --text-size: 22px;
+  --line: 1.55;
+  --pad: 20px;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --paper: #1D1C19;
+  --surface: #26251F;
+  --ink: #E4DED0;
+  --muted: #A19C8F;
+  --slate: #A7BCCD;
+  --selection: #5B4F2B;
+  --hairline: rgba(228, 222, 208, 0.14);
+  --scrim: rgba(0, 0, 0, 0.45);
+  --shadow: 0 -6px 24px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--ui); font-size: 15px; line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.greek { font-family: var(--greek); }
+:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; border-radius: 4px; }
+
+/* App bar */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; height: 56px;
+  display: flex; align-items: center; gap: 4px; padding: 0 4px;
+  background: var(--paper); border-bottom: 1px solid transparent;
+  transition: transform 180ms ease, border-color 160ms;
+}
+.bar.scrolled { border-bottom-color: var(--hairline); }
+.bar.hidden { transform: translateY(-100%); }
+.bar .title { flex: 1; text-align: center; font-weight: 500; font-size: 16px; color: var(--ink); }
+.bar .title.left { text-align: left; padding-left: 16px; font-family: var(--greek); font-size: 24px; font-weight: 400; }
+.icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; color: var(--slate); }
+.icon:hover { background: var(--hairline); }
+.icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.icon.on svg { fill: currentColor; }
+.textbtn { padding: 10px 14px; color: var(--slate); font-weight: 500; letter-spacing: 0.04em; border-radius: 20px; font-size: 14px; }
+.textbtn:hover { background: var(--hairline); }
+
+.screen { max-width: 720px; margin: 0 auto; padding: 0 var(--pad) 48px; animation: enter 220ms ease both; }
+.screen.back { animation-name: enter-back; }
+@keyframes enter { from { opacity: 0; transform: translateX(16px); } }
+@keyframes enter-back { from { opacity: 0; transform: translateX(-16px); } }
+
+/* Books */
+.lib-head { margin: 8px 0 20px; }
+.lib-head .greek { font-size: 22px; }
+.meta { font-size: 13px; color: var(--muted); }
+.section { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate); margin: 28px 0 4px; }
+.card {
+  display: block; width: 100%; text-align: left; background: var(--surface);
+  border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 16px;
+}
+.card .row1 { display: flex; justify-content: space-between; align-items: baseline; }
+.card .label { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; color: var(--slate); }
+.card .cite { font-size: 20px; font-weight: 500; margin: 6px 0 2px; }
+.card .greek { font-size: 18px; color: var(--muted); }
+.hint {
+  margin: 16px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--selection);
+  display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 14px;
+}
+.list { list-style: none; margin: 0; padding: 0; }
+.list li + li { border-top: 1px solid var(--hairline); }
+.rowbtn {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 14px 0; min-height: 56px; position: relative;
+}
+.rowbtn .main { flex: 1; min-width: 0; }
+.rowbtn .primary { font-size: 16px; font-weight: 500; }
+.rowbtn .secondary { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.rowbtn .secondary.greek { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rowbtn .chev { color: var(--muted); font-size: 22px; }
+.rowbtn .figmark { width: 18px; height: 18px; color: var(--muted); }
+.rowbtn.last::before { content: ''; position: absolute; left: -12px; top: 12px; bottom: 12px; width: 3px; border-radius: 2px; background: var(--slate); }
+.planned { padding: 14px 0; color: var(--muted); font-size: 14px; border-top: 1px solid var(--hairline); }
+.contents-head { margin: 4px 0 8px; }
+.contents-head h1 { font-size: 26px; font-weight: 500; margin: 0; }
+.contents-head .greek { font-size: 19px; color: var(--muted); }
+
+/* Reader */
+.reader { padding-bottom: 30vh; }
+.reader.sheet-pad { padding-bottom: 46vh; }
+.plabel { font-size: 13px; letter-spacing: 0.08em; color: var(--muted); margin: 8px 0 14px; }
+.text { font-family: var(--greek); font-size: var(--text-size); line-height: var(--line); font-kerning: normal; }
+.text p { margin: 0 0 0.8em; }
+.text .enun { font-size: calc(var(--text-size) * 1.09); font-weight: 700; }
+.item { margin-bottom: 1em; }
+.item .icite { display: block; font-family: var(--ui); font-size: 12.5px; font-weight: 500; color: var(--slate); letter-spacing: 0.04em; margin-bottom: 2px; }
+.w { cursor: pointer; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+@media (hover: hover) { .w:hover { text-decoration: underline; text-decoration-color: var(--hairline); text-underline-offset: 4px; } }
+.w.sel { background: var(--selection); box-shadow: 0 0 0 2px var(--selection); }
+:root[data-contrast="high"] .w.sel { background: var(--ink); color: var(--paper); box-shadow: 0 0 0 2px var(--ink); }
+.figure-inline { display: block; width: 100%; margin: 4px 0 20px; padding: 8px 0; border-radius: 12px; }
+.figure-inline:hover { background: var(--hairline); }
+.figure-inline svg { display: block; width: 100%; max-width: 420px; margin: 0 auto; height: auto; }
+.fig-line { stroke: var(--ink); stroke-width: 1.6; fill: none; vector-effect: non-scaling-stroke; }
+.fig-label { fill: var(--ink); font-family: var(--greek); }
+.pnav { display: flex; justify-content: space-between; margin-top: 28px; padding-top: 8px; border-top: 1px solid var(--hairline); }
+.pnav button { padding: 12px 4px; color: var(--slate); font-weight: 500; font-size: 15px; }
+.pnav .later { color: var(--muted); font-size: 14px; padding: 12px 4px; }
+
+/* Bottom sheets */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 30; animation: fade 160ms ease both; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; margin: 0 auto; max-width: 720px;
+  background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: var(--shadow);
+  padding: 4px var(--pad) calc(20px + env(safe-area-inset-bottom));
+  transform: translateY(0); transition: transform 220ms cubic-bezier(.2,.8,.2,1);
+  max-height: 85vh; overflow-y: auto; overscroll-behavior: contain;
+}
+.sheet.entering { transform: translateY(100%); }
+.handle { display: block; width: 100%; height: 24px; position: relative; touch-action: none; cursor: grab; }
+.handle::after { content: ''; position: absolute; left: 50%; top: 10px; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--hairline); }
+@keyframes fade { from { opacity: 0; } }
+
+.morph .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.morph .surface { font-family: var(--greek); font-size: 28px; }
+.morph .cite { font-size: 13px; font-weight: 500; color: var(--slate); }
+.morph .lemma { font-family: var(--greek); font-size: 21px; color: var(--slate); margin: 2px 0 10px; }
+.morph .parse { font-size: 16px; line-height: 1.5; }
+.morph .parse div { user-select: text; }
+.morph .gloss { margin-top: 12px; font-size: 15px; color: var(--muted); }
+.morph .gloss b { font-weight: 600; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); margin-right: 6px; }
+.morph .more { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.morph .more h3 { margin: 0 0 4px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); font-weight: 600; }
+.morph .more p { margin: 0 0 12px; font-family: var(--greek); font-size: 18px; }
+.morph .more .src { font-family: var(--ui); font-size: 13px; color: var(--muted); }
+.morph .actions { display: flex; gap: 4px; margin: 12px -14px 0; }
+.morph.crossfade { animation: fade 120ms ease both; }
+
+.settings h2 { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate); margin: 18px 0 4px; }
+.settings h2:first-of-type { margin-top: 4px; }
+.setting { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 52px; border-bottom: 1px solid var(--hairline); }
+.setting label, .setting .name { font-size: 15px; }
+.setting input[type=range] { width: 50%; accent-color: var(--slate); }
+.seg { display: inline-flex; border: 1px solid var(--hairline); border-radius: 20px; overflow: hidden; }
+.seg button { padding: 7px 12px; font-size: 13.5px; }
+.seg button[aria-pressed="true"] { background: var(--slate); color: var(--surface); }
+.switch { width: 44px; height: 26px; border-radius: 13px; background: var(--hairline); position: relative; flex: none; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left 140ms; }
+.switch[aria-checked="true"] { background: var(--slate); }
+.switch[aria-checked="true"]::after { left: 21px; }
+.about p { font-size: 14.5px; line-height: 1.55; margin: 0 0 12px; }
+.about .greek { font-size: 17px; }
+
+/* Menu, dialog, toast */
+.menu {
+  position: fixed; z-index: 41; top: 52px; right: 8px; min-width: 200px; padding: 6px 0;
+  background: var(--surface); border-radius: 10px; box-shadow: 0 6px 28px rgba(0,0,0,.2); animation: fade 120ms ease both;
+}
+.menu button { display: block; width: 100%; text-align: left; padding: 12px 18px; font-size: 15px; }
+.menu button:hover { background: var(--hairline); }
+.menu-scrim { position: fixed; inset: 0; z-index: 40; }
+.dialog-wrap { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--scrim); padding: 16px; animation: fade 140ms ease both; }
+.dialog { width: 100%; max-width: 360px; background: var(--surface); border-radius: 20px; padding: 20px; animation: pop 160ms ease both; }
+@keyframes pop { from { opacity: 0; transform: scale(.96); } }
+.dialog h2 { margin: 0 0 14px; font-size: 20px; font-weight: 500; }
+.dialog .fields { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 8px; }
+.dialog select, .dialog input {
+  width: 100%; font: inherit; font-size: 15px; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 8px; min-width: 0;
+}
+.dialog .typed { margin-top: 10px; }
+.dialog .err { color: #A3412F; font-size: 13.5px; min-height: 20px; margin-top: 8px; }
+:root[data-theme="dark"] .dialog .err { color: #E59A86; }
+.dialog .btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.primary-btn { background: var(--slate); color: var(--surface); padding: 10px 18px; border-radius: 20px; font-weight: 500; }
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60;
+  background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 8px; font-size: 14px; animation: fade 140ms ease both;
+}
+
+/* Figure view */
+.figview { position: fixed; inset: 0; z-index: 20; background: var(--paper); display: flex; flex-direction: column; animation: figin 200ms ease both; }
+@keyframes figin { from { opacity: 0; transform: scale(.98); } }
+.figstage { flex: 1; overflow: hidden; touch-action: none; position: relative; cursor: grab; }
+.figstage svg { position: absolute; left: 50%; top: 50%; width: min(92vw, 92vh, 760px); height: auto; transform-origin: 0 0; }
+
+/* Expanded layout: figure and analysis beside the text */
+.side { display: none; }
+@media (min-width: 960px) {
+  .screen.reader-wide { max-width: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 56px; }
+  .reader-wide .text { max-width: 30em; }
+  .reader-wide .figure-inline.in-text { display: none; }
+  .reader-wide .side { display: block; position: sticky; top: 72px; align-self: start; padding-top: 32px; }
+  .reader-wide .side .morph { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 18px; margin-top: 8px; }
+  .reader-wide .side .morph .actions { margin-bottom: -6px; }
+  .reader.sheet-pad { padding-bottom: 30vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>// Generated by tools/build.mjs. Do not edit by hand.
+window.STOICHEIA = {"version":1,"work":{"id":"urn:cts:greekLit:tlg1799.tlg001","title":"Εὐκλείδου Στοιχεῖα","author":"Euclid","edition":"Heiberg (1883–1888)"},"books":[{"id":"I","n":1,"title":"Book I","greekTitle":"Στοιχείων Εὐκλείδου αʹ","summary":"Definitions, postulates, 48 propositions"}],"planned":{"propositions":"I.4 – I.48 planned","next":"I.4 planned"},"figures":{"euclid.1.1":{"points":{"Α":[0,0],"Β":[1,0],"Γ":[0.5,0.866],"Δ":[-1,0],"Ε":[2,0]},"segments":[["Α","Β"],["Α","Γ"],["Β","Γ"],["Δ","Α"],["Β","Ε"]],"circles":[{"center":"Α","through":"Β"},{"center":"Β","through":"Α"}],"labels":{"Α":[-0.07,-0.11],"Β":[0.07,-0.11],"Γ":[0,0.14],"Δ":[-0.1,0],"Ε":[0.1,0]}},"euclid.1.2":{"points":{"Α":[0,0],"Β":[1,0],"Δ":[0.5,0.866],"Γ":[1.564,-0.205],"Η":[1.3,-0.52],"Λ":[-0.3,-0.52],"Ε":[-0.5,-0.866],"Ζ":[1.5,-0.866],"Θ":[0.896,0.591],"Κ":[-0.886,0.066]},"segments":[["Α","Β"],["Δ","Ε"],["Δ","Ζ"],["Β","Γ"]],"circles":[{"center":"Β","through":"Γ"},{"center":"Δ","through":"Η"}],"labels":{"Α":[-0.11,0.05],"Β":[0.11,0.06],"Γ":[0.11,0],"Δ":[0,0.12],"Ε":[-0.08,-0.08],"Ζ":[0.08,-0.08],"Η":[0.11,0.02],"Θ":[0.02,0.1],"Κ":[-0.11,0],"Λ":[-0.12,0]}},"euclid.1.3":{"points":{"Α":[0,0],"Β":[2,0],"Δ":[-0.4,0.693],"Ε":[0.8,0],"Ζ":[-0.613,-0.514],"g1":[0.6,1.25],"g2":[1.4,1.25],"Γ":[1,1.25]},"segments":[["Α","Β"],["Α","Δ"],["g1","g2"]],"circles":[{"center":"Α","through":"Δ"}],"labels":{"Α":[-0.08,-0.11],"Β":[0.1,0],"Δ":[-0.07,0.09],"Ε":[0.07,-0.11],"Ζ":[-0.09,-0.07],"Γ":[0,0.12]}}},"passages":[{"id":"I.Def","book":"I","kind":"definitions","type":null,"title":"Definitions","greekTitle":"Ὅροι","range":"I.Def.1–I.Def.16","planned":"I.Def.17–23 planned","figure":null,"firstWords":"Σημεῖόν ἐστιν, οὗ μέρος…","paragraphs":[{"id":"euclid.I.Def.p0","role":"item","cite":"I.Def.1","text":"Σημεῖόν ἐστιν, οὗ μέρος οὐθέν.","spans":[{"id":"euclid.I.Def.p0.t0","s":0,"e":7,"a":0},{"id":"euclid.I.Def.p0.t1","s":8,"e":13,"a":1},{"id":"euclid.I.Def.p0.t2","s":15,"e":17,"a":2},{"id":"euclid.I.Def.p0.t3","s":18,"e":23,"a":3},{"id":"euclid.I.Def.p0.t4","s":24,"e":29,"a":4}]},{"id":"euclid.I.Def.p1","role":"item","cite":"I.Def.2","text":"Γραμμὴ δὲ μῆκος ἀπλατές.","spans":[{"id":"euclid.I.Def.p1.t0","s":0,"e":6,"a":5},{"id":"euclid.I.Def.p1.t1","s":7,"e":9,"a":6},{"id":"euclid.I.Def.p1.t2","s":10,"e":15,"a":7},{"id":"euclid.I.Def.p1.t3","s":16,"e":23,"a":8}]},{"id":"euclid.I.Def.p2","role":"item","cite":"I.Def.3","text":"Γραμμῆς δὲ πέρατα σημεῖα.","spans":[{"id":"euclid.I.Def.p2.t0","s":0,"e":7,"a":9},{"id":"euclid.I.Def.p2.t1","s":8,"e":10,"a":6},{"id":"euclid.I.Def.p2.t2","s":11,"e":17,"a":10},{"id":"euclid.I.Def.p2.t3","s":18,"e":24,"a":11}]},{"id":"euclid.I.Def.p3","role":"item","cite":"I.Def.4","text":"Εὐθεῖα γραμμή ἐστιν, ἥτις ἐξ ἴσου τοῖς ἐφ’ ἑαυτῆς σημείοις κεῖται.","spans":[{"id":"euclid.I.Def.p3.t0","s":0,"e":6,"a":12},{"id":"euclid.I.Def.p3.t1","s":7,"e":13,"a":13},{"id":"euclid.I.Def.p3.t2","s":14,"e":19,"a":1},{"id":"euclid.I.Def.p3.t3","s":21,"e":25,"a":14},{"id":"euclid.I.Def.p3.t4","s":26,"e":28,"a":15},{"id":"euclid.I.Def.p3.t5","s":29,"e":33,"a":16},{"id":"euclid.I.Def.p3.t6","s":34,"e":38,"a":17},{"id":"euclid.I.Def.p3.t7","s":39,"e":42,"a":18},{"id":"euclid.I.Def.p3.t8","s":43,"e":49,"a":19},{"id":"euclid.I.Def.p3.t9","s":50,"e":58,"a":20},{"id":"euclid.I.Def.p3.t10","s":59,"e":65,"a":21}]},{"id":"euclid.I.Def.p4","role":"item","cite":"I.Def.5","text":"Ἐπιφάνεια δέ ἐστιν, ὃ μῆκος καὶ πλάτος μόνον ἔχει.","spans":[{"id":"euclid.I.Def.p4.t0","s":0,"e":9,"a":22},{"id":"euclid.I.Def.p4.t1","s":10,"e":12,"a":23},{"id":"euclid.I.Def.p4.t2","s":13,"e":18,"a":1},{"id":"euclid.I.Def.p4.t3","s":20,"e":21,"a":24},{"id":"euclid.I.Def.p4.t4","s":22,"e":27,"a":25},{"id":"euclid.I.Def.p4.t5","s":28,"e":31,"a":26},{"id":"euclid.I.Def.p4.t6","s":32,"e":38,"a":27},{"id":"euclid.I.Def.p4.t7","s":39,"e":44,"a":28},{"id":"euclid.I.Def.p4.t8","s":45,"e":49,"a":29}]},{"id":"euclid.I.Def.p5","role":"item","cite":"I.Def.6","text":"Ἐπιφανείας δὲ πέρατα γραμμαί.","spans":[{"id":"euclid.I.Def.p5.t0","s":0,"e":10,"a":30},{"id":"euclid.I.Def.p5.t1","s":11,"e":13,"a":6},{"id":"euclid.I.Def.p5.t2","s":14,"e":20,"a":10},{"id":"euclid.I.Def.p5.t3","s":21,"e":28,"a":31}]},{"id":"euclid.I.Def.p6","role":"item","cite":"I.Def.7","text":"Ἐπίπεδος ἐπιφάνειά ἐστιν, ἥτις ἐξ ἴσου ταῖς ἐφ’ ἑαυτῆς εὐθείαις κεῖται.","spans":[{"id":"euclid.I.Def.p6.t0","s":0,"e":8,"a":32},{"id":"euclid.I.Def.p6.t1","s":9,"e":18,"a":33},{"id":"euclid.I.Def.p6.t2","s":19,"e":24,"a":1},{"id":"euclid.I.Def.p6.t3","s":26,"e":30,"a":14},{"id":"euclid.I.Def.p6.t4","s":31,"e":33,"a":15},{"id":"euclid.I.Def.p6.t5","s":34,"e":38,"a":16},{"id":"euclid.I.Def.p6.t6","s":39,"e":43,"a":34},{"id":"euclid.I.Def.p6.t7","s":44,"e":47,"a":18},{"id":"euclid.I.Def.p6.t8","s":48,"e":54,"a":19},{"id":"euclid.I.Def.p6.t9","s":55,"e":63,"a":35},{"id":"euclid.I.Def.p6.t10","s":64,"e":70,"a":21}]},{"id":"euclid.I.Def.p7","role":"item","cite":"I.Def.8","text":"Ἐπίπεδος δὲ γωνία ἐστὶν ἡ ἐν ἐπιπέδῳ δύο γραμμῶν ἁπτομένων ἀλλήλων καὶ μὴ ἐπ’ εὐθείας κειμένων πρὸς ἀλλήλας τῶν γραμμῶν κλίσις.","spans":[{"id":"euclid.I.Def.p7.t0","s":0,"e":8,"a":32},{"id":"euclid.I.Def.p7.t1","s":9,"e":11,"a":6},{"id":"euclid.I.Def.p7.t2","s":12,"e":17,"a":36},{"id":"euclid.I.Def.p7.t3","s":18,"e":23,"a":37},{"id":"euclid.I.Def.p7.t4","s":24,"e":25,"a":38},{"id":"euclid.I.Def.p7.t5","s":26,"e":28,"a":39},{"id":"euclid.I.Def.p7.t6","s":29,"e":36,"a":40},{"id":"euclid.I.Def.p7.t7","s":37,"e":40,"a":41},{"id":"euclid.I.Def.p7.t8","s":41,"e":48,"a":42},{"id":"euclid.I.Def.p7.t9","s":49,"e":58,"a":43},{"id":"euclid.I.Def.p7.t10","s":59,"e":66,"a":44},{"id":"euclid.I.Def.p7.t11","s":67,"e":70,"a":26},{"id":"euclid.I.Def.p7.t12","s":71,"e":73,"a":45},{"id":"euclid.I.Def.p7.t13","s":74,"e":77,"a":46},{"id":"euclid.I.Def.p7.t14","s":78,"e":85,"a":47},{"id":"euclid.I.Def.p7.t15","s":86,"e":94,"a":48},{"id":"euclid.I.Def.p7.t16","s":95,"e":99,"a":49},{"id":"euclid.I.Def.p7.t17","s":100,"e":107,"a":50},{"id":"euclid.I.Def.p7.t18","s":108,"e":111,"a":51},{"id":"euclid.I.Def.p7.t19","s":112,"e":119,"a":42},{"id":"euclid.I.Def.p7.t20","s":120,"e":126,"a":52}]},{"id":"euclid.I.Def.p8","role":"item","cite":"I.Def.9","text":"Ὅταν δὲ αἱ περιέχουσαι τὴν γωνίαν γραμμαὶ εὐθεῖαι ὦσιν, εὐθύγραμμος καλεῖται ἡ γωνία.","spans":[{"id":"euclid.I.Def.p8.t0","s":0,"e":4,"a":53},{"id":"euclid.I.Def.p8.t1","s":5,"e":7,"a":6},{"id":"euclid.I.Def.p8.t2","s":8,"e":10,"a":54},{"id":"euclid.I.Def.p8.t3","s":11,"e":22,"a":55},{"id":"euclid.I.Def.p8.t4","s":23,"e":26,"a":56},{"id":"euclid.I.Def.p8.t5","s":27,"e":33,"a":57},{"id":"euclid.I.Def.p8.t6","s":34,"e":41,"a":58},{"id":"euclid.I.Def.p8.t7","s":42,"e":49,"a":59},{"id":"euclid.I.Def.p8.t8","s":50,"e":54,"a":60},{"id":"euclid.I.Def.p8.t9","s":56,"e":67,"a":61},{"id":"euclid.I.Def.p8.t10","s":68,"e":76,"a":62},{"id":"euclid.I.Def.p8.t11","s":77,"e":78,"a":38},{"id":"euclid.I.Def.p8.t12","s":79,"e":84,"a":36}]},{"id":"euclid.I.Def.p9","role":"item","cite":"I.Def.10","text":"Ὅταν δὲ εὐθεῖα ἐπ’ εὐθεῖαν σταθεῖσα τὰς ἐφεξῆς γωνίας ἴσας ἀλλήλαις ποιῇ, ὀρθὴ ἑκατέρα τῶν ἴσων γωνιῶν ἐστι, καὶ ἡ ἐφεστηκυῖα εὐθεῖα κάθετος καλεῖται, ἐφ’ ἣν ἐφέστηκεν.","spans":[{"id":"euclid.I.Def.p9.t0","s":0,"e":4,"a":53},{"id":"euclid.I.Def.p9.t1","s":5,"e":7,"a":6},{"id":"euclid.I.Def.p9.t2","s":8,"e":14,"a":12},{"id":"euclid.I.Def.p9.t3","s":15,"e":18,"a":63},{"id":"euclid.I.Def.p9.t4","s":19,"e":26,"a":64},{"id":"euclid.I.Def.p9.t5","s":27,"e":35,"a":65},{"id":"euclid.I.Def.p9.t6","s":36,"e":39,"a":66},{"id":"euclid.I.Def.p9.t7","s":40,"e":46,"a":67},{"id":"euclid.I.Def.p9.t8","s":47,"e":53,"a":68},{"id":"euclid.I.Def.p9.t9","s":54,"e":58,"a":69},{"id":"euclid.I.Def.p9.t10","s":59,"e":67,"a":70},{"id":"euclid.I.Def.p9.t11","s":68,"e":72,"a":71},{"id":"euclid.I.Def.p9.t12","s":74,"e":78,"a":72},{"id":"euclid.I.Def.p9.t13","s":79,"e":86,"a":73},{"id":"euclid.I.Def.p9.t14","s":87,"e":90,"a":51},{"id":"euclid.I.Def.p9.t15","s":91,"e":95,"a":74},{"id":"euclid.I.Def.p9.t16","s":96,"e":102,"a":75},{"id":"euclid.I.Def.p9.t17","s":103,"e":107,"a":76},{"id":"euclid.I.Def.p9.t18","s":109,"e":112,"a":26},{"id":"euclid.I.Def.p9.t19","s":113,"e":114,"a":38},{"id":"euclid.I.Def.p9.t20","s":115,"e":125,"a":77},{"id":"euclid.I.Def.p9.t21","s":126,"e":132,"a":12},{"id":"euclid.I.Def.p9.t22","s":133,"e":140,"a":78},{"id":"euclid.I.Def.p9.t23","s":141,"e":149,"a":62},{"id":"euclid.I.Def.p9.t24","s":151,"e":154,"a":79},{"id":"euclid.I.Def.p9.t25","s":155,"e":157,"a":80},{"id":"euclid.I.Def.p9.t26","s":158,"e":167,"a":81}]},{"id":"euclid.I.Def.p10","role":"item","cite":"I.Def.11","text":"Ἀμβλεῖα γωνία ἐστὶν ἡ μείζων ὀρθῆς.","spans":[{"id":"euclid.I.Def.p10.t0","s":0,"e":7,"a":82},{"id":"euclid.I.Def.p10.t1","s":8,"e":13,"a":36},{"id":"euclid.I.Def.p10.t2","s":14,"e":19,"a":37},{"id":"euclid.I.Def.p10.t3","s":20,"e":21,"a":38},{"id":"euclid.I.Def.p10.t4","s":22,"e":28,"a":83},{"id":"euclid.I.Def.p10.t5","s":29,"e":34,"a":84}]},{"id":"euclid.I.Def.p11","role":"item","cite":"I.Def.12","text":"Ὀξεῖα δὲ ἡ ἐλάσσων ὀρθῆς.","spans":[{"id":"euclid.I.Def.p11.t0","s":0,"e":5,"a":85},{"id":"euclid.I.Def.p11.t1","s":6,"e":8,"a":6},{"id":"euclid.I.Def.p11.t2","s":9,"e":10,"a":38},{"id":"euclid.I.Def.p11.t3","s":11,"e":18,"a":86},{"id":"euclid.I.Def.p11.t4","s":19,"e":24,"a":84}]},{"id":"euclid.I.Def.p12","role":"item","cite":"I.Def.13","text":"Ὅρος ἐστίν, ὅ τινός ἐστι πέρας.","spans":[{"id":"euclid.I.Def.p12.t0","s":0,"e":4,"a":87},{"id":"euclid.I.Def.p12.t1","s":5,"e":10,"a":88},{"id":"euclid.I.Def.p12.t2","s":12,"e":13,"a":89},{"id":"euclid.I.Def.p12.t3","s":14,"e":19,"a":90},{"id":"euclid.I.Def.p12.t4","s":20,"e":24,"a":76},{"id":"euclid.I.Def.p12.t5","s":25,"e":30,"a":91}]},{"id":"euclid.I.Def.p13","role":"item","cite":"I.Def.14","text":"Σχῆμά ἐστι τὸ ὑπό τινος ἤ τινων ὅρων περιεχόμενον.","spans":[{"id":"euclid.I.Def.p13.t0","s":0,"e":5,"a":92},{"id":"euclid.I.Def.p13.t1","s":6,"e":10,"a":76},{"id":"euclid.I.Def.p13.t2","s":11,"e":13,"a":93},{"id":"euclid.I.Def.p13.t3","s":14,"e":17,"a":94},{"id":"euclid.I.Def.p13.t4","s":18,"e":23,"a":95},{"id":"euclid.I.Def.p13.t5","s":24,"e":25,"a":96},{"id":"euclid.I.Def.p13.t6","s":26,"e":31,"a":97},{"id":"euclid.I.Def.p13.t7","s":32,"e":36,"a":98},{"id":"euclid.I.Def.p13.t8","s":37,"e":49,"a":99}]},{"id":"euclid.I.Def.p14","role":"item","cite":"I.Def.15","text":"Κύκλος ἐστὶ σχῆμα ἐπίπεδον ὑπὸ μιᾶς γραμμῆς περιεχόμενον [ἣ καλεῖται περιφέρεια], πρὸς ἣν ἀφ’ ἑνὸς σημείου τῶν ἐντὸς τοῦ σχήματος κειμένων πᾶσαι αἱ προσπίπτουσαι εὐθεῖαι [πρὸς τὴν τοῦ κύκλου περιφέρειαν] ἴσαι ἀλλήλαις εἰσίν.","spans":[{"id":"euclid.I.Def.p14.t0","s":0,"e":6,"a":100},{"id":"euclid.I.Def.p14.t1","s":7,"e":11,"a":101},{"id":"euclid.I.Def.p14.t2","s":12,"e":17,"a":102},{"id":"euclid.I.Def.p14.t3","s":18,"e":26,"a":103},{"id":"euclid.I.Def.p14.t4","s":27,"e":30,"a":104},{"id":"euclid.I.Def.p14.t5","s":31,"e":35,"a":105},{"id":"euclid.I.Def.p14.t6","s":36,"e":43,"a":9},{"id":"euclid.I.Def.p14.t7","s":44,"e":56,"a":99},{"id":"euclid.I.Def.p14.t8","s":58,"e":59,"a":106},{"id":"euclid.I.Def.p14.t9","s":60,"e":68,"a":62},{"id":"euclid.I.Def.p14.t10","s":69,"e":79,"a":107},{"id":"euclid.I.Def.p14.t11","s":82,"e":86,"a":49},{"id":"euclid.I.Def.p14.t12","s":87,"e":89,"a":80},{"id":"euclid.I.Def.p14.t13","s":90,"e":93,"a":108},{"id":"euclid.I.Def.p14.t14","s":94,"e":98,"a":109},{"id":"euclid.I.Def.p14.t15","s":99,"e":106,"a":110},{"id":"euclid.I.Def.p14.t16","s":107,"e":110,"a":111},{"id":"euclid.I.Def.p14.t17","s":111,"e":116,"a":112},{"id":"euclid.I.Def.p14.t18","s":117,"e":120,"a":113},{"id":"euclid.I.Def.p14.t19","s":121,"e":129,"a":114},{"id":"euclid.I.Def.p14.t20","s":130,"e":138,"a":115},{"id":"euclid.I.Def.p14.t21","s":139,"e":144,"a":116},{"id":"euclid.I.Def.p14.t22","s":145,"e":147,"a":54},{"id":"euclid.I.Def.p14.t23","s":148,"e":161,"a":117},{"id":"euclid.I.Def.p14.t24","s":162,"e":169,"a":59},{"id":"euclid.I.Def.p14.t25","s":171,"e":175,"a":49},{"id":"euclid.I.Def.p14.t26","s":176,"e":179,"a":56},{"id":"euclid.I.Def.p14.t27","s":180,"e":183,"a":118},{"id":"euclid.I.Def.p14.t28","s":184,"e":190,"a":119},{"id":"euclid.I.Def.p14.t29","s":191,"e":202,"a":120},{"id":"euclid.I.Def.p14.t30","s":204,"e":208,"a":121},{"id":"euclid.I.Def.p14.t31","s":209,"e":217,"a":70},{"id":"euclid.I.Def.p14.t32","s":218,"e":223,"a":122}]},{"id":"euclid.I.Def.p15","role":"item","cite":"I.Def.16","text":"Κέντρον δὲ τοῦ κύκλου τὸ σημεῖον καλεῖται.","spans":[{"id":"euclid.I.Def.p15.t0","s":0,"e":7,"a":123},{"id":"euclid.I.Def.p15.t1","s":8,"e":10,"a":6},{"id":"euclid.I.Def.p15.t2","s":11,"e":14,"a":118},{"id":"euclid.I.Def.p15.t3","s":15,"e":21,"a":119},{"id":"euclid.I.Def.p15.t4","s":22,"e":24,"a":93},{"id":"euclid.I.Def.p15.t5","s":25,"e":32,"a":124},{"id":"euclid.I.Def.p15.t6","s":33,"e":41,"a":62}]}]},{"id":"I.Post","book":"I","kind":"postulates","type":null,"title":"Postulates","greekTitle":"Αἰτήματα","range":"I.Post.1–I.Post.5","planned":null,"figure":null,"firstWords":"Ἠιτήσθω ἀπὸ παντὸς σημείου…","paragraphs":[{"id":"euclid.I.Post.p0","role":"item","cite":"I.Post.1","text":"Ἠιτήσθω ἀπὸ παντὸς σημείου ἐπὶ πᾶν σημεῖον εὐθεῖαν γραμμὴν ἀγαγεῖν.","spans":[{"id":"euclid.I.Post.p0.t0","s":0,"e":7,"a":125},{"id":"euclid.I.Post.p0.t1","s":8,"e":11,"a":126},{"id":"euclid.I.Post.p0.t2","s":12,"e":18,"a":127},{"id":"euclid.I.Post.p0.t3","s":19,"e":26,"a":110},{"id":"euclid.I.Post.p0.t4","s":27,"e":30,"a":128},{"id":"euclid.I.Post.p0.t5","s":31,"e":34,"a":129},{"id":"euclid.I.Post.p0.t6","s":35,"e":42,"a":130},{"id":"euclid.I.Post.p0.t7","s":43,"e":50,"a":64},{"id":"euclid.I.Post.p0.t8","s":51,"e":58,"a":131},{"id":"euclid.I.Post.p0.t9","s":59,"e":66,"a":132}]},{"id":"euclid.I.Post.p1","role":"item","cite":"I.Post.2","text":"Καὶ πεπερασμένην εὐθεῖαν κατὰ τὸ συνεχὲς ἐπ’ εὐθείας ἐκβαλεῖν.","spans":[{"id":"euclid.I.Post.p1.t0","s":0,"e":3,"a":26},{"id":"euclid.I.Post.p1.t1","s":4,"e":16,"a":133},{"id":"euclid.I.Post.p1.t2","s":17,"e":24,"a":64},{"id":"euclid.I.Post.p1.t3","s":25,"e":29,"a":134},{"id":"euclid.I.Post.p1.t4","s":30,"e":32,"a":135},{"id":"euclid.I.Post.p1.t5","s":33,"e":40,"a":136},{"id":"euclid.I.Post.p1.t6","s":41,"e":44,"a":46},{"id":"euclid.I.Post.p1.t7","s":45,"e":52,"a":47},{"id":"euclid.I.Post.p1.t8","s":53,"e":61,"a":137}]},{"id":"euclid.I.Post.p2","role":"item","cite":"I.Post.3","text":"Καὶ παντὶ κέντρῳ καὶ διαστήματι κύκλον γράφεσθαι.","spans":[{"id":"euclid.I.Post.p2.t0","s":0,"e":3,"a":26},{"id":"euclid.I.Post.p2.t1","s":4,"e":9,"a":138},{"id":"euclid.I.Post.p2.t2","s":10,"e":16,"a":139},{"id":"euclid.I.Post.p2.t3","s":17,"e":20,"a":26},{"id":"euclid.I.Post.p2.t4","s":21,"e":31,"a":140},{"id":"euclid.I.Post.p2.t5","s":32,"e":38,"a":141},{"id":"euclid.I.Post.p2.t6","s":39,"e":48,"a":142}]},{"id":"euclid.I.Post.p3","role":"item","cite":"I.Post.4","text":"Καὶ πάσας τὰς ὀρθὰς γωνίας ἴσας ἀλλήλαις εἶναι.","spans":[{"id":"euclid.I.Post.p3.t0","s":0,"e":3,"a":26},{"id":"euclid.I.Post.p3.t1","s":4,"e":9,"a":143},{"id":"euclid.I.Post.p3.t2","s":10,"e":13,"a":66},{"id":"euclid.I.Post.p3.t3","s":14,"e":19,"a":144},{"id":"euclid.I.Post.p3.t4","s":20,"e":26,"a":68},{"id":"euclid.I.Post.p3.t5","s":27,"e":31,"a":69},{"id":"euclid.I.Post.p3.t6","s":32,"e":40,"a":70},{"id":"euclid.I.Post.p3.t7","s":41,"e":46,"a":145}]},{"id":"euclid.I.Post.p4","role":"item","cite":"I.Post.5","text":"Καὶ ἐὰν εἰς δύο εὐθείας εὐθεῖα ἐμπίπτουσα τὰς ἐντὸς καὶ ἐπὶ τὰ αὐτὰ μέρη γωνίας δύο ὀρθῶν ἐλάσσονας ποιῇ, ἐκβαλλομένας τὰς δύο εὐθείας ἐπ’ ἄπειρον συμπίπτειν, ἐφ’ ἃ μέρη εἰσὶν αἱ τῶν δύο ὀρθῶν ἐλάσσονες.","spans":[{"id":"euclid.I.Post.p4.t0","s":0,"e":3,"a":26},{"id":"euclid.I.Post.p4.t1","s":4,"e":7,"a":146},{"id":"euclid.I.Post.p4.t2","s":8,"e":11,"a":147},{"id":"euclid.I.Post.p4.t3","s":12,"e":15,"a":148},{"id":"euclid.I.Post.p4.t4","s":16,"e":23,"a":149},{"id":"euclid.I.Post.p4.t5","s":24,"e":30,"a":12},{"id":"euclid.I.Post.p4.t6","s":31,"e":41,"a":150},{"id":"euclid.I.Post.p4.t7","s":42,"e":45,"a":66},{"id":"euclid.I.Post.p4.t8","s":46,"e":51,"a":112},{"id":"euclid.I.Post.p4.t9","s":52,"e":55,"a":26},{"id":"euclid.I.Post.p4.t10","s":56,"e":59,"a":128},{"id":"euclid.I.Post.p4.t11","s":60,"e":62,"a":151},{"id":"euclid.I.Post.p4.t12","s":63,"e":67,"a":152},{"id":"euclid.I.Post.p4.t13","s":68,"e":72,"a":153},{"id":"euclid.I.Post.p4.t14","s":73,"e":79,"a":68},{"id":"euclid.I.Post.p4.t15","s":80,"e":83,"a":41},{"id":"euclid.I.Post.p4.t16","s":84,"e":89,"a":154},{"id":"euclid.I.Post.p4.t17","s":90,"e":99,"a":155},{"id":"euclid.I.Post.p4.t18","s":100,"e":104,"a":71},{"id":"euclid.I.Post.p4.t19","s":106,"e":118,"a":156},{"id":"euclid.I.Post.p4.t20","s":119,"e":122,"a":66},{"id":"euclid.I.Post.p4.t21","s":123,"e":126,"a":148},{"id":"euclid.I.Post.p4.t22","s":127,"e":134,"a":149},{"id":"euclid.I.Post.p4.t23","s":135,"e":138,"a":63},{"id":"euclid.I.Post.p4.t24","s":139,"e":146,"a":157},{"id":"euclid.I.Post.p4.t25","s":147,"e":157,"a":158},{"id":"euclid.I.Post.p4.t26","s":159,"e":162,"a":79},{"id":"euclid.I.Post.p4.t27","s":163,"e":164,"a":159},{"id":"euclid.I.Post.p4.t28","s":165,"e":169,"a":153},{"id":"euclid.I.Post.p4.t29","s":170,"e":175,"a":160},{"id":"euclid.I.Post.p4.t30","s":176,"e":178,"a":54},{"id":"euclid.I.Post.p4.t31","s":179,"e":182,"a":51},{"id":"euclid.I.Post.p4.t32","s":183,"e":186,"a":41},{"id":"euclid.I.Post.p4.t33","s":187,"e":192,"a":154},{"id":"euclid.I.Post.p4.t34","s":193,"e":202,"a":161}]}]},{"id":"I.CN","book":"I","kind":"common notions","type":null,"title":"Common notions","greekTitle":"Κοιναὶ ἔννοιαι","range":"I.CN.1–I.CN.5","planned":null,"figure":null,"firstWords":"Τὰ τῷ αὐτῷ ἴσα…","paragraphs":[{"id":"euclid.I.CN.p0","role":"item","cite":"I.CN.1","text":"Τὰ τῷ αὐτῷ ἴσα καὶ ἀλλήλοις ἐστὶν ἴσα.","spans":[{"id":"euclid.I.CN.p0.t0","s":0,"e":2,"a":162},{"id":"euclid.I.CN.p0.t1","s":3,"e":5,"a":163},{"id":"euclid.I.CN.p0.t2","s":6,"e":10,"a":164},{"id":"euclid.I.CN.p0.t3","s":11,"e":14,"a":165},{"id":"euclid.I.CN.p0.t4","s":15,"e":18,"a":26},{"id":"euclid.I.CN.p0.t5","s":19,"e":27,"a":166},{"id":"euclid.I.CN.p0.t6","s":28,"e":33,"a":37},{"id":"euclid.I.CN.p0.t7","s":34,"e":37,"a":165}]},{"id":"euclid.I.CN.p1","role":"item","cite":"I.CN.2","text":"Καὶ ἐὰν ἴσοις ἴσα προστεθῇ, τὰ ὅλα ἐστὶν ἴσα.","spans":[{"id":"euclid.I.CN.p1.t0","s":0,"e":3,"a":26},{"id":"euclid.I.CN.p1.t1","s":4,"e":7,"a":146},{"id":"euclid.I.CN.p1.t2","s":8,"e":13,"a":167},{"id":"euclid.I.CN.p1.t3","s":14,"e":17,"a":165},{"id":"euclid.I.CN.p1.t4","s":18,"e":26,"a":168},{"id":"euclid.I.CN.p1.t5","s":28,"e":30,"a":162},{"id":"euclid.I.CN.p1.t6","s":31,"e":34,"a":169},{"id":"euclid.I.CN.p1.t7","s":35,"e":40,"a":37},{"id":"euclid.I.CN.p1.t8","s":41,"e":44,"a":165}]},{"id":"euclid.I.CN.p2","role":"item","cite":"I.CN.3","text":"Καὶ ἐὰν ἀπὸ ἴσων ἴσα ἀφαιρεθῇ, τὰ καταλειπόμενά ἐστιν ἴσα.","spans":[{"id":"euclid.I.CN.p2.t0","s":0,"e":3,"a":26},{"id":"euclid.I.CN.p2.t1","s":4,"e":7,"a":146},{"id":"euclid.I.CN.p2.t2","s":8,"e":11,"a":126},{"id":"euclid.I.CN.p2.t3","s":12,"e":16,"a":170},{"id":"euclid.I.CN.p2.t4","s":17,"e":20,"a":165},{"id":"euclid.I.CN.p2.t5","s":21,"e":29,"a":171},{"id":"euclid.I.CN.p2.t6","s":31,"e":33,"a":162},{"id":"euclid.I.CN.p2.t7","s":34,"e":47,"a":172},{"id":"euclid.I.CN.p2.t8","s":48,"e":53,"a":1},{"id":"euclid.I.CN.p2.t9","s":54,"e":57,"a":165}]},{"id":"euclid.I.CN.p3","role":"item","cite":"I.CN.4","text":"Καὶ τὰ ἐφαρμόζοντα ἐπ’ ἀλλήλα ἴσα ἀλλήλοις ἐστίν.","spans":[{"id":"euclid.I.CN.p3.t0","s":0,"e":3,"a":26},{"id":"euclid.I.CN.p3.t1","s":4,"e":6,"a":162},{"id":"euclid.I.CN.p3.t2","s":7,"e":18,"a":173},{"id":"euclid.I.CN.p3.t3","s":19,"e":22,"a":63},{"id":"euclid.I.CN.p3.t4","s":23,"e":29,"a":174},{"id":"euclid.I.CN.p3.t5","s":30,"e":33,"a":165},{"id":"euclid.I.CN.p3.t6","s":34,"e":42,"a":166},{"id":"euclid.I.CN.p3.t7","s":43,"e":48,"a":88}]},{"id":"euclid.I.CN.p4","role":"item","cite":"I.CN.5","text":"Καὶ τὸ ὅλον τοῦ μέρους μεῖζόν [ἐστιν].","spans":[{"id":"euclid.I.CN.p4.t0","s":0,"e":3,"a":26},{"id":"euclid.I.CN.p4.t1","s":4,"e":6,"a":93},{"id":"euclid.I.CN.p4.t2","s":7,"e":11,"a":175},{"id":"euclid.I.CN.p4.t3","s":12,"e":15,"a":113},{"id":"euclid.I.CN.p4.t4","s":16,"e":22,"a":176},{"id":"euclid.I.CN.p4.t5","s":23,"e":29,"a":177},{"id":"euclid.I.CN.p4.t6","s":31,"e":36,"a":1}]}]},{"id":"I.1","book":"I","kind":"proposition","type":"Construction","title":"I.1","greekTitle":"Πρότασις αʹ","range":"I.1","planned":null,"figure":"euclid.1.1","firstWords":"Ἐπὶ τῆς δοθείσης εὐθείας…","paragraphs":[{"id":"euclid.I.1.p0","role":"enunciation","text":"Ἐπὶ τῆς δοθείσης εὐθείας πεπερασμένης τρίγωνον ἰσόπλευρον συστήσασθαι.","spans":[{"id":"euclid.I.1.p0.t0","s":0,"e":3,"a":178},{"id":"euclid.I.1.p0.t1","s":4,"e":7,"a":179},{"id":"euclid.I.1.p0.t2","s":8,"e":16,"a":180},{"id":"euclid.I.1.p0.t3","s":17,"e":24,"a":47},{"id":"euclid.I.1.p0.t4","s":25,"e":37,"a":181},{"id":"euclid.I.1.p0.t5","s":38,"e":46,"a":182},{"id":"euclid.I.1.p0.t6","s":47,"e":57,"a":183},{"id":"euclid.I.1.p0.t7","s":58,"e":69,"a":184}]},{"id":"euclid.I.1.p1","role":"text","text":"Ἔστω ἡ δοθεῖσα εὐθεῖα πεπερασμένη ἡ ΑΒ.","spans":[{"id":"euclid.I.1.p1.t0","s":0,"e":4,"a":185},{"id":"euclid.I.1.p1.t1","s":5,"e":6,"a":38},{"id":"euclid.I.1.p1.t2","s":7,"e":14,"a":186},{"id":"euclid.I.1.p1.t3","s":15,"e":21,"a":12},{"id":"euclid.I.1.p1.t4","s":22,"e":33,"a":187},{"id":"euclid.I.1.p1.t5","s":34,"e":35,"a":38},{"s":36,"e":38,"k":"l"}]},{"id":"euclid.I.1.p2","role":"text","text":"Δεῖ δὴ ἐπὶ τῆς ΑΒ εὐθείας τρίγωνον ἰσόπλευρον συστήσασθαι.","spans":[{"id":"euclid.I.1.p2.t0","s":0,"e":3,"a":188},{"id":"euclid.I.1.p2.t1","s":4,"e":6,"a":189},{"id":"euclid.I.1.p2.t2","s":7,"e":10,"a":178},{"id":"euclid.I.1.p2.t3","s":11,"e":14,"a":179},{"s":15,"e":17,"k":"l"},{"id":"euclid.I.1.p2.t4","s":18,"e":25,"a":47},{"id":"euclid.I.1.p2.t5","s":26,"e":34,"a":182},{"id":"euclid.I.1.p2.t6","s":35,"e":45,"a":183},{"id":"euclid.I.1.p2.t7","s":46,"e":57,"a":184}]},{"id":"euclid.I.1.p3","role":"text","text":"Κέντρῳ μὲν τῷ Α διαστήματι δὲ τῷ ΑΒ κύκλος γεγράφθω ὁ ΒΓΔ, καὶ πάλιν κέντρῳ μὲν τῷ Β διαστήματι δὲ τῷ ΒΑ κύκλος γεγράφθω ὁ ΑΓΕ, καὶ ἀπὸ τοῦ Γ σημείου, καθ’ ὃ τέμνουσιν ἀλλήλους οἱ κύκλοι, ἐπὶ τὰ Α, Β σημεῖα ἐπεζεύχθωσαν εὐθεῖαι αἱ ΓΑ, ΓΒ.","spans":[{"id":"euclid.I.1.p3.t0","s":0,"e":6,"a":139},{"id":"euclid.I.1.p3.t1","s":7,"e":10,"a":190},{"id":"euclid.I.1.p3.t2","s":11,"e":13,"a":163},{"s":14,"e":15,"k":"l"},{"id":"euclid.I.1.p3.t3","s":16,"e":26,"a":140},{"id":"euclid.I.1.p3.t4","s":27,"e":29,"a":6},{"id":"euclid.I.1.p3.t5","s":30,"e":32,"a":163},{"s":33,"e":35,"k":"l"},{"id":"euclid.I.1.p3.t6","s":36,"e":42,"a":100},{"id":"euclid.I.1.p3.t7","s":43,"e":51,"a":191},{"id":"euclid.I.1.p3.t8","s":52,"e":53,"a":192},{"s":54,"e":57,"k":"l"},{"id":"euclid.I.1.p3.t9","s":59,"e":62,"a":26},{"id":"euclid.I.1.p3.t10","s":63,"e":68,"a":193},{"id":"euclid.I.1.p3.t11","s":69,"e":75,"a":139},{"id":"euclid.I.1.p3.t12","s":76,"e":79,"a":190},{"id":"euclid.I.1.p3.t13","s":80,"e":82,"a":163},{"s":83,"e":84,"k":"l"},{"id":"euclid.I.1.p3.t14","s":85,"e":95,"a":140},{"id":"euclid.I.1.p3.t15","s":96,"e":98,"a":6},{"id":"euclid.I.1.p3.t16","s":99,"e":101,"a":163},{"s":102,"e":104,"k":"l"},{"id":"euclid.I.1.p3.t17","s":105,"e":111,"a":100},{"id":"euclid.I.1.p3.t18","s":112,"e":120,"a":191},{"id":"euclid.I.1.p3.t19","s":121,"e":122,"a":192},{"s":123,"e":126,"k":"l"},{"id":"euclid.I.1.p3.t20","s":128,"e":131,"a":26},{"id":"euclid.I.1.p3.t21","s":132,"e":135,"a":126},{"id":"euclid.I.1.p3.t22","s":136,"e":139,"a":113},{"s":140,"e":141,"k":"l"},{"id":"euclid.I.1.p3.t23","s":142,"e":149,"a":110},{"id":"euclid.I.1.p3.t24","s":151,"e":155,"a":194},{"id":"euclid.I.1.p3.t25","s":156,"e":157,"a":195},{"id":"euclid.I.1.p3.t26","s":158,"e":167,"a":196},{"id":"euclid.I.1.p3.t27","s":168,"e":176,"a":197},{"id":"euclid.I.1.p3.t28","s":177,"e":179,"a":198},{"id":"euclid.I.1.p3.t29","s":180,"e":186,"a":199},{"id":"euclid.I.1.p3.t30","s":188,"e":191,"a":128},{"id":"euclid.I.1.p3.t31","s":192,"e":194,"a":151},{"s":195,"e":196,"k":"l"},{"s":198,"e":199,"k":"l"},{"id":"euclid.I.1.p3.t32","s":200,"e":206,"a":200},{"id":"euclid.I.1.p3.t33","s":207,"e":219,"a":201},{"id":"euclid.I.1.p3.t34","s":220,"e":227,"a":59},{"id":"euclid.I.1.p3.t35","s":228,"e":230,"a":54},{"s":231,"e":233,"k":"l"},{"s":235,"e":237,"k":"l"}]},{"id":"euclid.I.1.p4","role":"text","text":"Καὶ ἐπεὶ τὸ Α σημεῖον κέντρον ἐστὶ τοῦ ΓΔΒ κύκλου, ἴση ἐστὶν ἡ ΑΓ τῇ ΑΒ· πάλιν, ἐπεὶ τὸ Β σημεῖον κέντρον ἐστὶ τοῦ ΓΑΕ κύκλου, ἴση ἐστὶν ἡ ΒΓ τῇ ΒΑ. ἐδείχθη δὲ καὶ ἡ ΓΑ τῇ ΑΒ ἴση· ἑκατέρα ἄρα τῶν ΓΑ, ΓΒ τῇ ΑΒ ἐστιν ἴση. τὰ δὲ τῷ αὐτῷ ἴσα καὶ ἀλλήλοις ἐστὶν ἴσα· καὶ ἡ ΓΑ ἄρα τῇ ΓΒ ἐστιν ἴση· αἱ τρεῖς ἄρα αἱ ΓΑ, ΑΒ, ΒΓ ἴσαι ἀλλήλαις εἰσίν.","spans":[{"id":"euclid.I.1.p4.t0","s":0,"e":3,"a":26},{"id":"euclid.I.1.p4.t1","s":4,"e":8,"a":202},{"id":"euclid.I.1.p4.t2","s":9,"e":11,"a":93},{"s":12,"e":13,"k":"l"},{"id":"euclid.I.1.p4.t3","s":14,"e":21,"a":124},{"id":"euclid.I.1.p4.t4","s":22,"e":29,"a":123},{"id":"euclid.I.1.p4.t5","s":30,"e":34,"a":101},{"id":"euclid.I.1.p4.t6","s":35,"e":38,"a":118},{"s":39,"e":42,"k":"l"},{"id":"euclid.I.1.p4.t7","s":43,"e":49,"a":119},{"id":"euclid.I.1.p4.t8","s":51,"e":54,"a":203},{"id":"euclid.I.1.p4.t9","s":55,"e":60,"a":37},{"id":"euclid.I.1.p4.t10","s":61,"e":62,"a":38},{"s":63,"e":65,"k":"l"},{"id":"euclid.I.1.p4.t11","s":66,"e":68,"a":204},{"s":69,"e":71,"k":"l"},{"id":"euclid.I.1.p4.t12","s":73,"e":78,"a":193},{"id":"euclid.I.1.p4.t13","s":80,"e":84,"a":202},{"id":"euclid.I.1.p4.t14","s":85,"e":87,"a":93},{"s":88,"e":89,"k":"l"},{"id":"euclid.I.1.p4.t15","s":90,"e":97,"a":124},{"id":"euclid.I.1.p4.t16","s":98,"e":105,"a":123},{"id":"euclid.I.1.p4.t17","s":106,"e":110,"a":101},{"id":"euclid.I.1.p4.t18","s":111,"e":114,"a":118},{"s":115,"e":118,"k":"l"},{"id":"euclid.I.1.p4.t19","s":119,"e":125,"a":119},{"id":"euclid.I.1.p4.t20","s":127,"e":130,"a":203},{"id":"euclid.I.1.p4.t21","s":131,"e":136,"a":37},{"id":"euclid.I.1.p4.t22","s":137,"e":138,"a":38},{"s":139,"e":141,"k":"l"},{"id":"euclid.I.1.p4.t23","s":142,"e":144,"a":204},{"s":145,"e":147,"k":"l"},{"id":"euclid.I.1.p4.t24","s":149,"e":156,"a":205},{"id":"euclid.I.1.p4.t25","s":157,"e":159,"a":6},{"id":"euclid.I.1.p4.t26","s":160,"e":163,"a":26},{"id":"euclid.I.1.p4.t27","s":164,"e":165,"a":38},{"s":166,"e":168,"k":"l"},{"id":"euclid.I.1.p4.t28","s":169,"e":171,"a":204},{"s":172,"e":174,"k":"l"},{"id":"euclid.I.1.p4.t29","s":175,"e":178,"a":203},{"id":"euclid.I.1.p4.t30","s":180,"e":187,"a":73},{"id":"euclid.I.1.p4.t31","s":188,"e":191,"a":206},{"id":"euclid.I.1.p4.t32","s":192,"e":195,"a":51},{"s":196,"e":198,"k":"l"},{"s":200,"e":202,"k":"l"},{"id":"euclid.I.1.p4.t33","s":203,"e":205,"a":204},{"s":206,"e":208,"k":"l"},{"id":"euclid.I.1.p4.t34","s":209,"e":214,"a":1},{"id":"euclid.I.1.p4.t35","s":215,"e":218,"a":203},{"id":"euclid.I.1.p4.t36","s":220,"e":222,"a":162},{"id":"euclid.I.1.p4.t37","s":223,"e":225,"a":6},{"id":"euclid.I.1.p4.t38","s":226,"e":228,"a":163},{"id":"euclid.I.1.p4.t39","s":229,"e":233,"a":164},{"id":"euclid.I.1.p4.t40","s":234,"e":237,"a":165},{"id":"euclid.I.1.p4.t41","s":238,"e":241,"a":26},{"id":"euclid.I.1.p4.t42","s":242,"e":250,"a":166},{"id":"euclid.I.1.p4.t43","s":251,"e":256,"a":37},{"id":"euclid.I.1.p4.t44","s":257,"e":260,"a":165},{"id":"euclid.I.1.p4.t45","s":262,"e":265,"a":26},{"id":"euclid.I.1.p4.t46","s":266,"e":267,"a":38},{"s":268,"e":270,"k":"l"},{"id":"euclid.I.1.p4.t47","s":271,"e":274,"a":206},{"id":"euclid.I.1.p4.t48","s":275,"e":277,"a":204},{"s":278,"e":280,"k":"l"},{"id":"euclid.I.1.p4.t49","s":281,"e":286,"a":1},{"id":"euclid.I.1.p4.t50","s":287,"e":290,"a":203},{"id":"euclid.I.1.p4.t51","s":292,"e":294,"a":54},{"id":"euclid.I.1.p4.t52","s":295,"e":300,"a":207},{"id":"euclid.I.1.p4.t53","s":301,"e":304,"a":206},{"id":"euclid.I.1.p4.t54","s":305,"e":307,"a":54},{"s":308,"e":310,"k":"l"},{"s":312,"e":314,"k":"l"},{"s":316,"e":318,"k":"l"},{"id":"euclid.I.1.p4.t55","s":319,"e":323,"a":121},{"id":"euclid.I.1.p4.t56","s":324,"e":332,"a":70},{"id":"euclid.I.1.p4.t57","s":333,"e":338,"a":122}]},{"id":"euclid.I.1.p5","role":"text","text":"Ἰσόπλευρον ἄρα ἐστὶ τὸ ΑΒΓ τρίγωνον. καὶ συνέσταται ἐπὶ τῆς δοθείσης εὐθείας πεπερασμένης τῆς ΑΒ· ὅπερ ἔδει ποιῆσαι.","spans":[{"id":"euclid.I.1.p5.t0","s":0,"e":10,"a":208},{"id":"euclid.I.1.p5.t1","s":11,"e":14,"a":206},{"id":"euclid.I.1.p5.t2","s":15,"e":19,"a":101},{"id":"euclid.I.1.p5.t3","s":20,"e":22,"a":93},{"s":23,"e":26,"k":"l"},{"id":"euclid.I.1.p5.t4","s":27,"e":35,"a":209},{"id":"euclid.I.1.p5.t5","s":37,"e":40,"a":26},{"id":"euclid.I.1.p5.t6","s":41,"e":51,"a":210},{"id":"euclid.I.1.p5.t7","s":52,"e":55,"a":178},{"id":"euclid.I.1.p5.t8","s":56,"e":59,"a":179},{"id":"euclid.I.1.p5.t9","s":60,"e":68,"a":180},{"id":"euclid.I.1.p5.t10","s":69,"e":76,"a":47},{"id":"euclid.I.1.p5.t11","s":77,"e":89,"a":181},{"id":"euclid.I.1.p5.t12","s":90,"e":93,"a":179},{"s":94,"e":96,"k":"l"},{"id":"euclid.I.1.p5.t13","s":98,"e":102,"a":211},{"id":"euclid.I.1.p5.t14","s":103,"e":107,"a":212},{"id":"euclid.I.1.p5.t15","s":108,"e":115,"a":213}]}]},{"id":"I.2","book":"I","kind":"proposition","type":"Construction","title":"I.2","greekTitle":"Πρότασις βʹ","range":"I.2","planned":null,"figure":"euclid.1.2","firstWords":"Πρὸς τῷ δοθέντι σημείῳ…","paragraphs":[{"id":"euclid.I.2.p0","role":"enunciation","text":"Πρὸς τῷ δοθέντι σημείῳ τῇ δοθείσῃ εὐθείᾳ ἴσην εὐθεῖαν θέσθαι.","spans":[{"id":"euclid.I.2.p0.t0","s":0,"e":4,"a":214},{"id":"euclid.I.2.p0.t1","s":5,"e":7,"a":163},{"id":"euclid.I.2.p0.t2","s":8,"e":15,"a":215},{"id":"euclid.I.2.p0.t3","s":16,"e":22,"a":216},{"id":"euclid.I.2.p0.t4","s":23,"e":25,"a":204},{"id":"euclid.I.2.p0.t5","s":26,"e":33,"a":217},{"id":"euclid.I.2.p0.t6","s":34,"e":40,"a":218},{"id":"euclid.I.2.p0.t7","s":41,"e":45,"a":219},{"id":"euclid.I.2.p0.t8","s":46,"e":53,"a":64},{"id":"euclid.I.2.p0.t9","s":54,"e":60,"a":220}]},{"id":"euclid.I.2.p1","role":"text","text":"Ἔστω τὸ μὲν δοθὲν σημεῖον τὸ Α, ἡ δὲ δοθεῖσα εὐθεῖα ἡ ΒΓ· δεῖ δὴ πρὸς τῷ Α σημείῳ τῇ δοθείσῃ εὐθείᾳ τῇ ΒΓ ἴσην εὐθεῖαν θέσθαι.","spans":[{"id":"euclid.I.2.p1.t0","s":0,"e":4,"a":185},{"id":"euclid.I.2.p1.t1","s":5,"e":7,"a":93},{"id":"euclid.I.2.p1.t2","s":8,"e":11,"a":190},{"id":"euclid.I.2.p1.t3","s":12,"e":17,"a":221},{"id":"euclid.I.2.p1.t4","s":18,"e":25,"a":124},{"id":"euclid.I.2.p1.t5","s":26,"e":28,"a":93},{"s":29,"e":30,"k":"l"},{"id":"euclid.I.2.p1.t6","s":32,"e":33,"a":38},{"id":"euclid.I.2.p1.t7","s":34,"e":36,"a":6},{"id":"euclid.I.2.p1.t8","s":37,"e":44,"a":186},{"id":"euclid.I.2.p1.t9","s":45,"e":51,"a":12},{"id":"euclid.I.2.p1.t10","s":52,"e":53,"a":38},{"s":54,"e":56,"k":"l"},{"id":"euclid.I.2.p1.t11","s":58,"e":61,"a":188},{"id":"euclid.I.2.p1.t12","s":62,"e":64,"a":189},{"id":"euclid.I.2.p1.t13","s":65,"e":69,"a":214},{"id":"euclid.I.2.p1.t14","s":70,"e":72,"a":163},{"s":73,"e":74,"k":"l"},{"id":"euclid.I.2.p1.t15","s":75,"e":81,"a":216},{"id":"euclid.I.2.p1.t16","s":82,"e":84,"a":204},{"id":"euclid.I.2.p1.t17","s":85,"e":92,"a":217},{"id":"euclid.I.2.p1.t18","s":93,"e":99,"a":218},{"id":"euclid.I.2.p1.t19","s":100,"e":102,"a":204},{"s":103,"e":105,"k":"l"},{"id":"euclid.I.2.p1.t20","s":106,"e":110,"a":219},{"id":"euclid.I.2.p1.t21","s":111,"e":118,"a":64},{"id":"euclid.I.2.p1.t22","s":119,"e":125,"a":220}]},{"id":"euclid.I.2.p2","role":"text","text":"Ἐπεζεύχθω γὰρ ἀπὸ τοῦ Α σημείου ἐπὶ τὸ Β σημεῖον εὐθεῖα ἡ ΑΒ, καὶ συνεστάτω ἐπ’ αὐτῆς τρίγωνον ἰσόπλευρον τὸ ΔΑΒ, καὶ ἐκβεβλήσθωσαν ἐπ’ εὐθείας ταῖς ΔΑ, ΔΒ εὐθεῖαι αἱ ΑΕ, ΒΖ, καὶ κέντρῳ μὲν τῷ Β διαστήματι δὲ τῷ ΒΓ κύκλος γεγράφθω ὁ ΓΗΘ, καὶ πάλιν κέντρῳ τῷ Δ καὶ διαστήματι τῷ ΔΗ κύκλος γεγράφθω ὁ ΗΚΛ.","spans":[{"id":"euclid.I.2.p2.t0","s":0,"e":9,"a":222},{"id":"euclid.I.2.p2.t1","s":10,"e":13,"a":223},{"id":"euclid.I.2.p2.t2","s":14,"e":17,"a":126},{"id":"euclid.I.2.p2.t3","s":18,"e":21,"a":113},{"s":22,"e":23,"k":"l"},{"id":"euclid.I.2.p2.t4","s":24,"e":31,"a":110},{"id":"euclid.I.2.p2.t5","s":32,"e":35,"a":128},{"id":"euclid.I.2.p2.t6","s":36,"e":38,"a":135},{"s":39,"e":40,"k":"l"},{"id":"euclid.I.2.p2.t7","s":41,"e":48,"a":130},{"id":"euclid.I.2.p2.t8","s":49,"e":55,"a":12},{"id":"euclid.I.2.p2.t9","s":56,"e":57,"a":38},{"s":58,"e":60,"k":"l"},{"id":"euclid.I.2.p2.t10","s":62,"e":65,"a":26},{"id":"euclid.I.2.p2.t11","s":66,"e":75,"a":224},{"id":"euclid.I.2.p2.t12","s":76,"e":79,"a":46},{"id":"euclid.I.2.p2.t13","s":80,"e":85,"a":225},{"id":"euclid.I.2.p2.t14","s":86,"e":94,"a":209},{"id":"euclid.I.2.p2.t15","s":95,"e":105,"a":208},{"id":"euclid.I.2.p2.t16","s":106,"e":108,"a":93},{"s":109,"e":112,"k":"l"},{"id":"euclid.I.2.p2.t17","s":114,"e":117,"a":26},{"id":"euclid.I.2.p2.t18","s":118,"e":131,"a":226},{"id":"euclid.I.2.p2.t19","s":132,"e":135,"a":46},{"id":"euclid.I.2.p2.t20","s":136,"e":143,"a":47},{"id":"euclid.I.2.p2.t21","s":144,"e":148,"a":34},{"s":149,"e":151,"k":"l"},{"s":153,"e":155,"k":"l"},{"id":"euclid.I.2.p2.t22","s":156,"e":163,"a":59},{"id":"euclid.I.2.p2.t23","s":164,"e":166,"a":54},{"s":167,"e":169,"k":"l"},{"s":171,"e":173,"k":"l"},{"id":"euclid.I.2.p2.t24","s":175,"e":178,"a":26},{"id":"euclid.I.2.p2.t25","s":179,"e":185,"a":139},{"id":"euclid.I.2.p2.t26","s":186,"e":189,"a":190},{"id":"euclid.I.2.p2.t27","s":190,"e":192,"a":163},{"s":193,"e":194,"k":"l"},{"id":"euclid.I.2.p2.t28","s":195,"e":205,"a":140},{"id":"euclid.I.2.p2.t29","s":206,"e":208,"a":6},{"id":"euclid.I.2.p2.t30","s":209,"e":211,"a":163},{"s":212,"e":214,"k":"l"},{"id":"euclid.I.2.p2.t31","s":215,"e":221,"a":100},{"id":"euclid.I.2.p2.t32","s":222,"e":230,"a":191},{"id":"euclid.I.2.p2.t33","s":231,"e":232,"a":192},{"s":233,"e":236,"k":"l"},{"id":"euclid.I.2.p2.t34","s":238,"e":241,"a":26},{"id":"euclid.I.2.p2.t35","s":242,"e":247,"a":193},{"id":"euclid.I.2.p2.t36","s":248,"e":254,"a":139},{"id":"euclid.I.2.p2.t37","s":255,"e":257,"a":163},{"s":258,"e":259,"k":"l"},{"id":"euclid.I.2.p2.t38","s":260,"e":263,"a":26},{"id":"euclid.I.2.p2.t39","s":264,"e":274,"a":140},{"id":"euclid.I.2.p2.t40","s":275,"e":277,"a":163},{"s":278,"e":280,"k":"l"},{"id":"euclid.I.2.p2.t41","s":281,"e":287,"a":100},{"id":"euclid.I.2.p2.t42","s":288,"e":296,"a":191},{"id":"euclid.I.2.p2.t43","s":297,"e":298,"a":192},{"s":299,"e":302,"k":"l"}]},{"id":"euclid.I.2.p3","role":"text","text":"Ἐπεὶ οὖν τὸ Β σημεῖον κέντρον ἐστὶ τοῦ ΓΗΘ, ἴση ἐστὶν ἡ ΒΓ τῇ ΒΗ. πάλιν, ἐπεὶ τὸ Δ σημεῖον κέντρον ἐστὶ τοῦ ΗΚΛ κύκλου, ἴση ἐστὶν ἡ ΔΛ τῇ ΔΗ, ὧν ἡ ΔΑ τῇ ΔΒ ἴση ἐστίν. λοιπὴ ἄρα ἡ ΑΛ λοιπῇ τῇ ΒΗ ἐστιν ἴση. ἐδείχθη δὲ καὶ ἡ ΒΓ τῇ ΒΗ ἴση· ἑκατέρα ἄρα τῶν ΑΛ, ΒΓ τῇ ΒΗ ἐστιν ἴση. τὰ δὲ τῷ αὐτῷ ἴσα καὶ ἀλλήλοις ἐστὶν ἴσα· καὶ ἡ ΑΛ ἄρα τῇ ΒΓ ἐστιν ἴση.","spans":[{"id":"euclid.I.2.p3.t0","s":0,"e":4,"a":202},{"id":"euclid.I.2.p3.t1","s":5,"e":8,"a":227},{"id":"euclid.I.2.p3.t2","s":9,"e":11,"a":93},{"s":12,"e":13,"k":"l"},{"id":"euclid.I.2.p3.t3","s":14,"e":21,"a":124},{"id":"euclid.I.2.p3.t4","s":22,"e":29,"a":123},{"id":"euclid.I.2.p3.t5","s":30,"e":34,"a":101},{"id":"euclid.I.2.p3.t6","s":35,"e":38,"a":118},{"s":39,"e":42,"k":"l"},{"id":"euclid.I.2.p3.t7","s":44,"e":47,"a":203},{"id":"euclid.I.2.p3.t8","s":48,"e":53,"a":37},{"id":"euclid.I.2.p3.t9","s":54,"e":55,"a":38},{"s":56,"e":58,"k":"l"},{"id":"euclid.I.2.p3.t10","s":59,"e":61,"a":204},{"s":62,"e":64,"k":"l"},{"id":"euclid.I.2.p3.t11","s":66,"e":71,"a":193},{"id":"euclid.I.2.p3.t12","s":73,"e":77,"a":202},{"id":"euclid.I.2.p3.t13","s":78,"e":80,"a":93},{"s":81,"e":82,"k":"l"},{"id":"euclid.I.2.p3.t14","s":83,"e":90,"a":124},{"id":"euclid.I.2.p3.t15","s":91,"e":98,"a":123},{"id":"euclid.I.2.p3.t16","s":99,"e":103,"a":101},{"id":"euclid.I.2.p3.t17","s":104,"e":107,"a":118},{"s":108,"e":111,"k":"l"},{"id":"euclid.I.2.p3.t18","s":112,"e":118,"a":119},{"id":"euclid.I.2.p3.t19","s":120,"e":123,"a":203},{"id":"euclid.I.2.p3.t20","s":124,"e":129,"a":37},{"id":"euclid.I.2.p3.t21","s":130,"e":131,"a":38},{"s":132,"e":134,"k":"l"},{"id":"euclid.I.2.p3.t22","s":135,"e":137,"a":204},{"s":138,"e":140,"k":"l"},{"id":"euclid.I.2.p3.t23","s":142,"e":144,"a":228},{"id":"euclid.I.2.p3.t24","s":145,"e":146,"a":38},{"s":147,"e":149,"k":"l"},{"id":"euclid.I.2.p3.t25","s":150,"e":152,"a":204},{"s":153,"e":155,"k":"l"},{"id":"euclid.I.2.p3.t26","s":156,"e":159,"a":203},{"id":"euclid.I.2.p3.t27","s":160,"e":165,"a":88},{"id":"euclid.I.2.p3.t28","s":167,"e":172,"a":229},{"id":"euclid.I.2.p3.t29","s":173,"e":176,"a":206},{"id":"euclid.I.2.p3.t30","s":177,"e":178,"a":38},{"s":179,"e":181,"k":"l"},{"id":"euclid.I.2.p3.t31","s":182,"e":187,"a":230},{"id":"euclid.I.2.p3.t32","s":188,"e":190,"a":204},{"s":191,"e":193,"k":"l"},{"id":"euclid.I.2.p3.t33","s":194,"e":199,"a":1},{"id":"euclid.I.2.p3.t34","s":200,"e":203,"a":203},{"id":"euclid.I.2.p3.t35","s":205,"e":212,"a":205},{"id":"euclid.I.2.p3.t36","s":213,"e":215,"a":6},{"id":"euclid.I.2.p3.t37","s":216,"e":219,"a":26},{"id":"euclid.I.2.p3.t38","s":220,"e":221,"a":38},{"s":222,"e":224,"k":"l"},{"id":"euclid.I.2.p3.t39","s":225,"e":227,"a":204},{"s":228,"e":230,"k":"l"},{"id":"euclid.I.2.p3.t40","s":231,"e":234,"a":203},{"id":"euclid.I.2.p3.t41","s":236,"e":243,"a":73},{"id":"euclid.I.2.p3.t42","s":244,"e":247,"a":206},{"id":"euclid.I.2.p3.t43","s":248,"e":251,"a":51},{"s":252,"e":254,"k":"l"},{"s":256,"e":258,"k":"l"},{"id":"euclid.I.2.p3.t44","s":259,"e":261,"a":204},{"s":262,"e":264,"k":"l"},{"id":"euclid.I.2.p3.t45","s":265,"e":270,"a":1},{"id":"euclid.I.2.p3.t46","s":271,"e":274,"a":203},{"id":"euclid.I.2.p3.t47","s":276,"e":278,"a":162},{"id":"euclid.I.2.p3.t48","s":279,"e":281,"a":6},{"id":"euclid.I.2.p3.t49","s":282,"e":284,"a":163},{"id":"euclid.I.2.p3.t50","s":285,"e":289,"a":164},{"id":"euclid.I.2.p3.t51","s":290,"e":293,"a":165},{"id":"euclid.I.2.p3.t52","s":294,"e":297,"a":26},{"id":"euclid.I.2.p3.t53","s":298,"e":306,"a":166},{"id":"euclid.I.2.p3.t54","s":307,"e":312,"a":37},{"id":"euclid.I.2.p3.t55","s":313,"e":316,"a":165},{"id":"euclid.I.2.p3.t56","s":318,"e":321,"a":26},{"id":"euclid.I.2.p3.t57","s":322,"e":323,"a":38},{"s":324,"e":326,"k":"l"},{"id":"euclid.I.2.p3.t58","s":327,"e":330,"a":206},{"id":"euclid.I.2.p3.t59","s":331,"e":333,"a":204},{"s":334,"e":336,"k":"l"},{"id":"euclid.I.2.p3.t60","s":337,"e":342,"a":1},{"id":"euclid.I.2.p3.t61","s":343,"e":346,"a":203}]},{"id":"euclid.I.2.p4","role":"text","text":"Πρὸς ἄρα τῷ δοθέντι σημείῳ τῷ Α τῇ δοθείσῃ εὐθείᾳ τῇ ΒΓ ἴση εὐθεῖα κεῖται ἡ ΑΛ· ὅπερ ἔδει ποιῆσαι.","spans":[{"id":"euclid.I.2.p4.t0","s":0,"e":4,"a":214},{"id":"euclid.I.2.p4.t1","s":5,"e":8,"a":206},{"id":"euclid.I.2.p4.t2","s":9,"e":11,"a":163},{"id":"euclid.I.2.p4.t3","s":12,"e":19,"a":215},{"id":"euclid.I.2.p4.t4","s":20,"e":26,"a":216},{"id":"euclid.I.2.p4.t5","s":27,"e":29,"a":163},{"s":30,"e":31,"k":"l"},{"id":"euclid.I.2.p4.t6","s":32,"e":34,"a":204},{"id":"euclid.I.2.p4.t7","s":35,"e":42,"a":217},{"id":"euclid.I.2.p4.t8","s":43,"e":49,"a":218},{"id":"euclid.I.2.p4.t9","s":50,"e":52,"a":204},{"s":53,"e":55,"k":"l"},{"id":"euclid.I.2.p4.t10","s":56,"e":59,"a":203},{"id":"euclid.I.2.p4.t11","s":60,"e":66,"a":12},{"id":"euclid.I.2.p4.t12","s":67,"e":73,"a":21},{"id":"euclid.I.2.p4.t13","s":74,"e":75,"a":38},{"s":76,"e":78,"k":"l"},{"id":"euclid.I.2.p4.t14","s":80,"e":84,"a":211},{"id":"euclid.I.2.p4.t15","s":85,"e":89,"a":212},{"id":"euclid.I.2.p4.t16","s":90,"e":97,"a":213}]}]},{"id":"I.3","book":"I","kind":"proposition","type":"Construction","title":"I.3","greekTitle":"Πρότασις γʹ","range":"I.3","planned":null,"figure":"euclid.1.3","firstWords":"Δύο δοθεισῶν εὐθειῶν ἀνίσων…","paragraphs":[{"id":"euclid.I.3.p0","role":"enunciation","text":"Δύο δοθεισῶν εὐθειῶν ἀνίσων ἀπὸ τῆς μείζονος τῇ ἐλάσσονι ἴσην εὐθεῖαν ἀφελεῖν.","spans":[{"id":"euclid.I.3.p0.t0","s":0,"e":3,"a":41},{"id":"euclid.I.3.p0.t1","s":4,"e":12,"a":231},{"id":"euclid.I.3.p0.t2","s":13,"e":20,"a":232},{"id":"euclid.I.3.p0.t3","s":21,"e":27,"a":233},{"id":"euclid.I.3.p0.t4","s":28,"e":31,"a":126},{"id":"euclid.I.3.p0.t5","s":32,"e":35,"a":179},{"id":"euclid.I.3.p0.t6","s":36,"e":44,"a":234},{"id":"euclid.I.3.p0.t7","s":45,"e":47,"a":204},{"id":"euclid.I.3.p0.t8","s":48,"e":56,"a":235},{"id":"euclid.I.3.p0.t9","s":57,"e":61,"a":219},{"id":"euclid.I.3.p0.t10","s":62,"e":69,"a":64},{"id":"euclid.I.3.p0.t11","s":70,"e":77,"a":236}]},{"id":"euclid.I.3.p1","role":"text","text":"Ἔστωσαν αἱ δοθεῖσαι δύο εὐθεῖαι ἄνισοι αἱ ΑΒ, Γ, ὧν μείζων ἔστω ἡ ΑΒ· δεῖ δὴ ἀπὸ τῆς μείζονος τῆς ΑΒ τῇ ἐλάσσονι τῇ Γ ἴσην εὐθεῖαν ἀφελεῖν.","spans":[{"id":"euclid.I.3.p1.t0","s":0,"e":7,"a":237},{"id":"euclid.I.3.p1.t1","s":8,"e":10,"a":54},{"id":"euclid.I.3.p1.t2","s":11,"e":19,"a":238},{"id":"euclid.I.3.p1.t3","s":20,"e":23,"a":239},{"id":"euclid.I.3.p1.t4","s":24,"e":31,"a":59},{"id":"euclid.I.3.p1.t5","s":32,"e":38,"a":240},{"id":"euclid.I.3.p1.t6","s":39,"e":41,"a":54},{"s":42,"e":44,"k":"l"},{"s":46,"e":47,"k":"l"},{"id":"euclid.I.3.p1.t7","s":49,"e":51,"a":228},{"id":"euclid.I.3.p1.t8","s":52,"e":58,"a":83},{"id":"euclid.I.3.p1.t9","s":59,"e":63,"a":185},{"id":"euclid.I.3.p1.t10","s":64,"e":65,"a":38},{"s":66,"e":68,"k":"l"},{"id":"euclid.I.3.p1.t11","s":70,"e":73,"a":188},{"id":"euclid.I.3.p1.t12","s":74,"e":76,"a":189},{"id":"euclid.I.3.p1.t13","s":77,"e":80,"a":126},{"id":"euclid.I.3.p1.t14","s":81,"e":84,"a":179},{"id":"euclid.I.3.p1.t15","s":85,"e":93,"a":234},{"id":"euclid.I.3.p1.t16","s":94,"e":97,"a":179},{"s":98,"e":100,"k":"l"},{"id":"euclid.I.3.p1.t17","s":101,"e":103,"a":204},{"id":"euclid.I.3.p1.t18","s":104,"e":112,"a":235},{"id":"euclid.I.3.p1.t19","s":113,"e":115,"a":204},{"s":116,"e":117,"k":"l"},{"id":"euclid.I.3.p1.t20","s":118,"e":122,"a":219},{"id":"euclid.I.3.p1.t21","s":123,"e":130,"a":64},{"id":"euclid.I.3.p1.t22","s":131,"e":138,"a":236}]},{"id":"euclid.I.3.p2","role":"text","text":"Κείσθω πρὸς τῷ Α σημείῳ τῇ Γ εὐθείᾳ ἴση ἡ ΑΔ· καὶ κέντρῳ μὲν τῷ Α διαστήματι δὲ τῷ ΑΔ κύκλος γεγράφθω ὁ ΔΕΖ.","spans":[{"id":"euclid.I.3.p2.t0","s":0,"e":6,"a":241},{"id":"euclid.I.3.p2.t1","s":7,"e":11,"a":214},{"id":"euclid.I.3.p2.t2","s":12,"e":14,"a":163},{"s":15,"e":16,"k":"l"},{"id":"euclid.I.3.p2.t3","s":17,"e":23,"a":216},{"id":"euclid.I.3.p2.t4","s":24,"e":26,"a":204},{"s":27,"e":28,"k":"l"},{"id":"euclid.I.3.p2.t5","s":29,"e":35,"a":218},{"id":"euclid.I.3.p2.t6","s":36,"e":39,"a":203},{"id":"euclid.I.3.p2.t7","s":40,"e":41,"a":38},{"s":42,"e":44,"k":"l"},{"id":"euclid.I.3.p2.t8","s":46,"e":49,"a":26},{"id":"euclid.I.3.p2.t9","s":50,"e":56,"a":139},{"id":"euclid.I.3.p2.t10","s":57,"e":60,"a":190},{"id":"euclid.I.3.p2.t11","s":61,"e":63,"a":163},{"s":64,"e":65,"k":"l"},{"id":"euclid.I.3.p2.t12","s":66,"e":76,"a":140},{"id":"euclid.I.3.p2.t13","s":77,"e":79,"a":6},{"id":"euclid.I.3.p2.t14","s":80,"e":82,"a":163},{"s":83,"e":85,"k":"l"},{"id":"euclid.I.3.p2.t15","s":86,"e":92,"a":100},{"id":"euclid.I.3.p2.t16","s":93,"e":101,"a":191},{"id":"euclid.I.3.p2.t17","s":102,"e":103,"a":192},{"s":104,"e":107,"k":"l"}]},{"id":"euclid.I.3.p3","role":"text","text":"Καὶ ἐπεὶ τὸ Α σημεῖον κέντρον ἐστὶ τοῦ ΔΕΖ κύκλου, ἴση ἐστὶν ἡ ΑΕ τῇ ΑΔ· ἀλλὰ καὶ ἡ Γ τῇ ΑΔ ἐστιν ἴση. ἑκατέρα ἄρα τῶν ΑΕ, Γ τῇ ΑΔ ἐστιν ἴση· ὥστε καὶ ἡ ΑΕ τῇ Γ ἐστιν ἴση.","spans":[{"id":"euclid.I.3.p3.t0","s":0,"e":3,"a":26},{"id":"euclid.I.3.p3.t1","s":4,"e":8,"a":202},{"id":"euclid.I.3.p3.t2","s":9,"e":11,"a":93},{"s":12,"e":13,"k":"l"},{"id":"euclid.I.3.p3.t3","s":14,"e":21,"a":124},{"id":"euclid.I.3.p3.t4","s":22,"e":29,"a":123},{"id":"euclid.I.3.p3.t5","s":30,"e":34,"a":101},{"id":"euclid.I.3.p3.t6","s":35,"e":38,"a":118},{"s":39,"e":42,"k":"l"},{"id":"euclid.I.3.p3.t7","s":43,"e":49,"a":119},{"id":"euclid.I.3.p3.t8","s":51,"e":54,"a":203},{"id":"euclid.I.3.p3.t9","s":55,"e":60,"a":37},{"id":"euclid.I.3.p3.t10","s":61,"e":62,"a":38},{"s":63,"e":65,"k":"l"},{"id":"euclid.I.3.p3.t11","s":66,"e":68,"a":204},{"s":69,"e":71,"k":"l"},{"id":"euclid.I.3.p3.t12","s":73,"e":77,"a":242},{"id":"euclid.I.3.p3.t13","s":78,"e":81,"a":26},{"id":"euclid.I.3.p3.t14","s":82,"e":83,"a":38},{"s":84,"e":85,"k":"l"},{"id":"euclid.I.3.p3.t15","s":86,"e":88,"a":204},{"s":89,"e":91,"k":"l"},{"id":"euclid.I.3.p3.t16","s":92,"e":97,"a":1},{"id":"euclid.I.3.p3.t17","s":98,"e":101,"a":203},{"id":"euclid.I.3.p3.t18","s":103,"e":110,"a":73},{"id":"euclid.I.3.p3.t19","s":111,"e":114,"a":206},{"id":"euclid.I.3.p3.t20","s":115,"e":118,"a":51},{"s":119,"e":121,"k":"l"},{"s":123,"e":124,"k":"l"},{"id":"euclid.I.3.p3.t21","s":125,"e":127,"a":204},{"s":128,"e":130,"k":"l"},{"id":"euclid.I.3.p3.t22","s":131,"e":136,"a":1},{"id":"euclid.I.3.p3.t23","s":137,"e":140,"a":203},{"id":"euclid.I.3.p3.t24","s":142,"e":146,"a":243},{"id":"euclid.I.3.p3.t25","s":147,"e":150,"a":26},{"id":"euclid.I.3.p3.t26","s":151,"e":152,"a":38},{"s":153,"e":155,"k":"l"},{"id":"euclid.I.3.p3.t27","s":156,"e":158,"a":204},{"s":159,"e":160,"k":"l"},{"id":"euclid.I.3.p3.t28","s":161,"e":166,"a":1},{"id":"euclid.I.3.p3.t29","s":167,"e":170,"a":203}]},{"id":"euclid.I.3.p4","role":"text","text":"Δύο ἄρα δοθεισῶν εὐθειῶν ἀνίσων τῶν ΑΒ, Γ ἀπὸ τῆς μείζονος τῆς ΑΒ τῇ ἐλάσσονι τῇ Γ ἴση ἀφῄρηται ἡ ΑΕ· ὅπερ ἔδει ποιῆσαι.","spans":[{"id":"euclid.I.3.p4.t0","s":0,"e":3,"a":41},{"id":"euclid.I.3.p4.t1","s":4,"e":7,"a":206},{"id":"euclid.I.3.p4.t2","s":8,"e":16,"a":231},{"id":"euclid.I.3.p4.t3","s":17,"e":24,"a":232},{"id":"euclid.I.3.p4.t4","s":25,"e":31,"a":233},{"id":"euclid.I.3.p4.t5","s":32,"e":35,"a":51},{"s":36,"e":38,"k":"l"},{"s":40,"e":41,"k":"l"},{"id":"euclid.I.3.p4.t6","s":42,"e":45,"a":126},{"id":"euclid.I.3.p4.t7","s":46,"e":49,"a":179},{"id":"euclid.I.3.p4.t8","s":50,"e":58,"a":234},{"id":"euclid.I.3.p4.t9","s":59,"e":62,"a":179},{"s":63,"e":65,"k":"l"},{"id":"euclid.I.3.p4.t10","s":66,"e":68,"a":204},{"id":"euclid.I.3.p4.t11","s":69,"e":77,"a":235},{"id":"euclid.I.3.p4.t12","s":78,"e":80,"a":204},{"s":81,"e":82,"k":"l"},{"id":"euclid.I.3.p4.t13","s":83,"e":86,"a":203},{"id":"euclid.I.3.p4.t14","s":87,"e":95,"a":244},{"id":"euclid.I.3.p4.t15","s":96,"e":97,"a":38},{"s":98,"e":100,"k":"l"},{"id":"euclid.I.3.p4.t16","s":102,"e":106,"a":211},{"id":"euclid.I.3.p4.t17","s":107,"e":111,"a":212},{"id":"euclid.I.3.p4.t18","s":112,"e":119,"a":213}]}]}],"lemmas":{"ὁ":{"gloss":"the"},"ἐν":{"gloss":"in"},"ὑπό":{"gloss":"by, under"},"μή":{"gloss":"not"},"ὅταν":{"gloss":"whenever"},"ἤ":{"gloss":"or"},"ἐφεξῆς":{"gloss":"next in order; (of angles) adjacent"},"ἅπτω":{"gloss":"(mid.) touch","pp":"ἅπτω, ἅψω, ἧψα, —, ἧμμαι, ἥφθην"},"περιέχω":{"gloss":"contain, enclose","pp":"περιέχω, περιέξω, περιέσχον, περιέσχηκα, περιέσχημαι, περιεσχέθην"},"καλέω":{"gloss":"call; (pass.) be called","pp":"καλέω, καλῶ, ἐκάλεσα, κέκληκα, κέκλημαι, ἐκλήθην"},"ἵστημι":{"gloss":"set up, stand","pp":"ἵστημι, στήσω, ἔστησα / ἔστην, ἕστηκα, ἕσταμαι, ἐστάθην"},"ἐφίστημι":{"gloss":"set upon; (perf.) stand on","pp":"ἐφίστημι, ἐπιστήσω, ἐπέστησα / ἐπέστην, ἐφέστηκα, ἐφέσταμαι, ἐπεστάθην"},"προσπίπτω":{"gloss":"fall upon, meet","pp":"προσπίπτω, προσπεσοῦμαι, προσέπεσον, προσπέπτωκα"},"κλίσις":{"gloss":"inclination"},"ἐπίπεδος":{"gloss":"plane; (neut. as noun) a plane"},"εὐθύγραμμος":{"gloss":"rectilinear"},"κάθετος":{"gloss":"perpendicular"},"ἀμβλύς":{"gloss":"obtuse"},"ὀξύς":{"gloss":"acute"},"ὅρος":{"gloss":"boundary"},"τις":{"gloss":"some, any"},"σχῆμα":{"gloss":"figure"},"εἷς":{"gloss":"one"},"περιφέρεια":{"gloss":"circumference"},"πρός":{"gloss":"at, beside (+dat.)"},"γάρ":{"gloss":"for"},"οὖν":{"gloss":"then, therefore"},"ἀλλά":{"gloss":"but"},"ὥστε":{"gloss":"so that, and so"},"τίθημι":{"gloss":"place, set","pp":"τίθημι, θήσω, ἔθηκα, τέθηκα, τέθειμαι, ἐτέθην"},"λοιπός":{"gloss":"remaining"},"ἄνισος":{"gloss":"unequal"},"ἐπί":{"gloss":"on, upon; to"},"ἀπό":{"gloss":"from"},"κατά":{"gloss":"at, according to; (καθ’ ὅ) where"},"εἰς":{"gloss":"into, onto"},"ἐκ":{"gloss":"out of, from"},"καί":{"gloss":"and; also, even"},"δέ":{"gloss":"and, but"},"μέν":{"gloss":"on the one hand"},"δή":{"gloss":"then, now"},"ἄρα":{"gloss":"therefore"},"ἐπεί":{"gloss":"since"},"ἐάν":{"gloss":"if"},"πάλιν":{"gloss":"again"},"ἐντός":{"gloss":"within, inside"},"μόνον":{"gloss":"only"},"δίδωμι":{"gloss":"give; (pass. ptc.) given","pp":"δίδωμι, δώσω, ἔδωκα, δέδωκα, δέδομαι, ἐδόθην"},"περαίνω":{"gloss":"bound, limit; (perf. ptc.) finite","pp":"περαίνω, περανῶ, ἐπέρανα, —, πεπέρασμαι, ἐπεράνθην"},"συνίστημι":{"gloss":"construct, set up","pp":"συνίστημι, συστήσω, συνέστησα, συνέστηκα, συνέσταμαι, συνεστάθην"},"εἰμί":{"gloss":"be","pp":"εἰμί, ἔσομαι, ἦν (impf.)"},"δεῖ":{"gloss":"it is necessary","pp":"δεῖ, δεήσει, ἐδέησε(ν); impf. ἔδει"},"γράφω":{"gloss":"draw, describe (a figure)","pp":"γράφω, γράψω, ἔγραψα, γέγραφα, γέγραμμαι, ἐγράφην"},"τέμνω":{"gloss":"cut","pp":"τέμνω, τεμῶ, ἔτεμον, τέτμηκα, τέτμημαι, ἐτμήθην"},"ἐπιζεύγνυμι":{"gloss":"join (two points)","pp":"ἐπιζεύγνυμι, ἐπιζεύξω, ἐπέζευξα, —, ἐπέζευγμαι, ἐπεζεύχθην"},"δείκνυμι":{"gloss":"show, prove","pp":"δείκνυμι, δείξω, ἔδειξα, δέδειχα, δέδειγμαι, ἐδείχθην"},"ποιέω":{"gloss":"make, do","pp":"ποιέω, ποιήσω, ἐποίησα, πεποίηκα, πεποίημαι, ἐποιήθην"},"αἰτέω":{"gloss":"ask, postulate","pp":"αἰτέω, αἰτήσω, ᾔτησα, ᾔτηκα, ᾔτημαι, ᾐτήθην"},"ἄγω":{"gloss":"lead, draw (a line)","pp":"ἄγω, ἄξω, ἤγαγον, ἦχα, ἦγμαι, ἤχθην"},"ἐκβάλλω":{"gloss":"produce, extend (a line)","pp":"ἐκβάλλω, ἐκβαλῶ, ἐξέβαλον, ἐκβέβληκα, ἐκβέβλημαι, ἐξεβλήθην"},"ἐμπίπτω":{"gloss":"fall on, cut across","pp":"ἐμπίπτω, ἐμπεσοῦμαι, ἐνέπεσον, ἐμπέπτωκα"},"συμπίπτω":{"gloss":"meet, coincide","pp":"συμπίπτω, συμπεσοῦμαι, συνέπεσον, συμπέπτωκα"},"προστίθημι":{"gloss":"add","pp":"προστίθημι, προσθήσω, προσέθηκα, προστέθηκα, προστέθειμαι, προσετέθην"},"ἀφαιρέω":{"gloss":"take away, subtract","pp":"ἀφαιρέω, ἀφαιρήσω, ἀφεῖλον, ἀφῄρηκα, ἀφῄρημαι, ἀφῃρέθην"},"καταλείπω":{"gloss":"leave behind; (ptc.) remainder","pp":"καταλείπω, καταλείψω, κατέλιπον, καταλέλοιπα, καταλέλειμμαι, κατελείφθην"},"ἐφαρμόζω":{"gloss":"fit upon, coincide with","pp":"ἐφαρμόζω, ἐφαρμόσω, ἐφήρμοσα, ἐφήρμοκα, ἐφήρμοσμαι, ἐφηρμόσθην"},"κεῖμαι":{"gloss":"lie","pp":"κεῖμαι, κείσομαι"},"ἔχω":{"gloss":"have","pp":"ἔχω, ἕξω / σχήσω, ἔσχον, ἔσχηκα, -έσχημαι, ἐσχέθην"},"εὐθύς":{"gloss":"straight; (fem. as noun) straight line"},"τρίγωνον":{"gloss":"triangle"},"ἰσόπλευρος":{"gloss":"equilateral"},"κέντρον":{"gloss":"centre"},"διάστημα":{"gloss":"distance, radius"},"κύκλος":{"gloss":"circle"},"σημεῖον":{"gloss":"point"},"ἀλλήλων":{"gloss":"one another"},"ἴσος":{"gloss":"equal"},"ἑκάτερος":{"gloss":"each (of two)"},"αὐτός":{"gloss":"he, she, it; (with article) the same"},"τρεῖς":{"gloss":"three"},"δύο":{"gloss":"two"},"ὅς":{"gloss":"who, which"},"ὅσπερ":{"gloss":"the very one which"},"ὅστις":{"gloss":"whoever, which"},"πᾶς":{"gloss":"all, every"},"γραμμή":{"gloss":"line"},"συνεχής":{"gloss":"continuous"},"ὀρθός":{"gloss":"right (angle)"},"γωνία":{"gloss":"angle"},"μέρος":{"gloss":"part, side"},"ἐλάσσων":{"gloss":"less, smaller"},"ἄπειρος":{"gloss":"unbounded; (ἐπ’ ἄπειρον) indefinitely"},"ὅλος":{"gloss":"whole"},"μέγας":{"gloss":"great; (comp.) greater"},"οὐδείς":{"gloss":"no, none"},"μῆκος":{"gloss":"length"},"ἀπλατής":{"gloss":"breadthless"},"πέρας":{"gloss":"end, extremity"},"ἑαυτοῦ":{"gloss":"himself, herself, itself"},"ἐπιφάνεια":{"gloss":"surface"},"πλάτος":{"gloss":"breadth"}},"analyses":[{"lemma":"σημεῖον","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"εἰμί","code":"V ind pres act 3 s","line1":"indicative · present · active","line2":"third person · singular","flat":"present active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"ὅς","code":"R gen n s","line1":"pronoun","line2":"genitive · neuter · singular","flat":"pronoun, genitive neuter singular","features":{"pos":"R","case":"gen","gender":"n","number":"s"}},{"lemma":"μέρος","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"οὐδείς","code":"A nom n s","line1":"adjective","line2":"nominative · neuter · singular","flat":"adjective, nominative neuter singular","features":{"pos":"A","case":"nom","gender":"n","number":"s"}},{"lemma":"γραμμή","code":"N nom f s","line1":"noun","line2":"nominative · feminine · singular","flat":"noun, nominative feminine singular","features":{"pos":"N","case":"nom","gender":"f","number":"s"}},{"lemma":"δέ","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"μῆκος","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"ἀπλατής","code":"A nom n s","line1":"adjective","line2":"nominative · neuter · singular","flat":"adjective, nominative neuter singular","features":{"pos":"A","case":"nom","gender":"n","number":"s"}},{"lemma":"γραμμή","code":"N gen f s","line1":"noun","line2":"genitive · feminine · singular","flat":"noun, genitive feminine singular","features":{"pos":"N","case":"gen","gender":"f","number":"s"}},{"lemma":"πέρας","code":"N nom n p","line1":"noun","line2":"nominative · neuter · plural","flat":"noun, nominative neuter plural","features":{"pos":"N","case":"nom","gender":"n","number":"p"}},{"lemma":"σημεῖον","code":"N nom n p","line1":"noun","line2":"nominative · neuter · plural","flat":"noun, nominative neuter plural","features":{"pos":"N","case":"nom","gender":"n","number":"p"}},{"lemma":"εὐθύς","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"γραμμή","code":"N nom f s","line1":"noun","line2":"nominative · feminine · singular","flat":"noun, nominative feminine singular","features":{"pos":"N","case":"nom","gender":"f","number":"s"}},{"lemma":"ὅστις","code":"R nom f s","line1":"pronoun","line2":"nominative · feminine · singular","flat":"pronoun, nominative feminine singular","features":{"pos":"R","case":"nom","gender":"f","number":"s"}},{"lemma":"ἐκ","code":"P +gen","line1":"preposition · with genitive","line2":"","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen"}},{"lemma":"ἴσος","code":"A gen n s","line1":"adjective","line2":"genitive · neuter · singular","flat":"adjective, genitive neuter singular","features":{"pos":"A","case":"gen","gender":"n","number":"s"}},{"lemma":"ὁ","code":"T dat n p","line1":"article","line2":"dative · neuter · plural","flat":"article, dative neuter plural","features":{"pos":"T","case":"dat","gender":"n","number":"p"}},{"lemma":"ἐπί","code":"P +gen elided","line1":"preposition · with genitive","line2":"elided before a vowel","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen","elided":"elided"}},{"lemma":"ἑαυτοῦ","code":"R gen f s","line1":"pronoun","line2":"genitive · feminine · singular","flat":"pronoun, genitive feminine singular","features":{"pos":"R","case":"gen","gender":"f","number":"s"}},{"lemma":"σημεῖον","code":"N dat n p","line1":"noun","line2":"dative · neuter · plural","flat":"noun, dative neuter plural","features":{"pos":"N","case":"dat","gender":"n","number":"p"}},{"lemma":"κεῖμαι","code":"V ind pres mp 3 s","line1":"indicative · present · middle/passive","line2":"third person · singular","flat":"present middle/passive indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"mp","person":"3","number":"s"}},{"lemma":"ἐπιφάνεια","code":"N nom f s","line1":"noun","line2":"nominative · feminine · singular","flat":"noun, nominative feminine singular","features":{"pos":"N","case":"nom","gender":"f","number":"s"}},{"lemma":"δέ","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"ὅς","code":"R nom n s","line1":"pronoun","line2":"nominative · neuter · singular","flat":"pronoun, nominative neuter singular","features":{"pos":"R","case":"nom","gender":"n","number":"s"}},{"lemma":"μῆκος","code":"N acc n s","line1":"noun","line2":"accusative · neuter · singular","flat":"noun, accusative neuter singular","features":{"pos":"N","case":"acc","gender":"n","number":"s"}},{"lemma":"καί","code":"C","line1":"conjunction","line2":"","flat":"conjunction","features":{"pos":"C"}},{"lemma":"πλάτος","code":"N acc n s","line1":"noun","line2":"accusative · neuter · singular","flat":"noun, accusative neuter singular","features":{"pos":"N","case":"acc","gender":"n","number":"s"}},{"lemma":"μόνον","code":"D","line1":"adverb","line2":"","flat":"adverb","features":{"pos":"D"}},{"lemma":"ἔχω","code":"V ind pres act 3 s","line1":"indicative · present · active","line2":"third person · singular","flat":"present active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"ἐπιφάνεια","code":"N gen f s","line1":"noun","line2":"genitive · feminine · singular","flat":"noun, genitive feminine singular","features":{"pos":"N","case":"gen","gender":"f","number":"s"}},{"lemma":"γραμμή","code":"N nom f p","line1":"noun","line2":"nominative · feminine · plural","flat":"noun, nominative feminine plural","features":{"pos":"N","case":"nom","gender":"f","number":"p"}},{"lemma":"ἐπίπεδος","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"ἐπιφάνεια","code":"N nom f s","line1":"noun","line2":"nominative · feminine · singular","flat":"noun, nominative feminine singular","features":{"pos":"N","case":"nom","gender":"f","number":"s"}},{"lemma":"ὁ","code":"T dat f p","line1":"article","line2":"dative · feminine · plural","flat":"article, dative feminine plural","features":{"pos":"T","case":"dat","gender":"f","number":"p"}},{"lemma":"εὐθύς","code":"A dat f p","line1":"adjective","line2":"dative · feminine · plural","flat":"adjective, dative feminine plural","features":{"pos":"A","case":"dat","gender":"f","number":"p"}},{"lemma":"γωνία","code":"N nom f s","line1":"noun","line2":"nominative · feminine · singular","flat":"noun, nominative feminine singular","features":{"pos":"N","case":"nom","gender":"f","number":"s"}},{"lemma":"εἰμί","code":"V ind pres act 3 s","line1":"indicative · present · active","line2":"third person · singular","flat":"present active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"ὁ","code":"T nom f s","line1":"article","line2":"nominative · feminine · singular","flat":"article, nominative feminine singular","features":{"pos":"T","case":"nom","gender":"f","number":"s"}},{"lemma":"ἐν","code":"P +dat","line1":"preposition · with dative","line2":"","flat":"preposition with dative","features":{"pos":"P","gov":"+dat"}},{"lemma":"ἐπίπεδος","code":"A dat n s","line1":"adjective","line2":"dative · neuter · singular","flat":"adjective, dative neuter singular","features":{"pos":"A","case":"dat","gender":"n","number":"s"}},{"lemma":"δύο","code":"M gen f p","line1":"numeral","line2":"genitive · feminine · plural","flat":"numeral, genitive feminine plural","features":{"pos":"M","case":"gen","gender":"f","number":"p"}},{"lemma":"γραμμή","code":"N gen f p","line1":"noun","line2":"genitive · feminine · plural","flat":"noun, genitive feminine plural","features":{"pos":"N","case":"gen","gender":"f","number":"p"}},{"lemma":"ἅπτω","code":"V ptc pres mp gen f p","line1":"participle · present · middle/passive","line2":"genitive · feminine · plural","flat":"present middle/passive participle, genitive feminine plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"mp","case":"gen","gender":"f","number":"p"}},{"lemma":"ἀλλήλων","code":"R gen f p","line1":"pronoun","line2":"genitive · feminine · plural","flat":"pronoun, genitive feminine plural","features":{"pos":"R","case":"gen","gender":"f","number":"p"}},{"lemma":"μή","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"ἐπί","code":"P +gen elided","line1":"preposition · with genitive","line2":"elided before a vowel","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen","elided":"elided"}},{"lemma":"εὐθύς","code":"A gen f s","line1":"adjective","line2":"genitive · feminine · singular","flat":"adjective, genitive feminine singular","features":{"pos":"A","case":"gen","gender":"f","number":"s"}},{"lemma":"κεῖμαι","code":"V ptc pres mp gen f p","line1":"participle · present · middle/passive","line2":"genitive · feminine · plural","flat":"present middle/passive participle, genitive feminine plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"mp","case":"gen","gender":"f","number":"p"}},{"lemma":"πρός","code":"P +acc","line1":"preposition · with accusative","line2":"","flat":"preposition with accusative","features":{"pos":"P","gov":"+acc"}},{"lemma":"ἀλλήλων","code":"R acc f p","line1":"pronoun","line2":"accusative · feminine · plural","flat":"pronoun, accusative feminine plural","features":{"pos":"R","case":"acc","gender":"f","number":"p"}},{"lemma":"ὁ","code":"T gen f p","line1":"article","line2":"genitive · feminine · plural","flat":"article, genitive feminine plural","features":{"pos":"T","case":"gen","gender":"f","number":"p"}},{"lemma":"κλίσις","code":"N nom f s","line1":"noun","line2":"nominative · feminine · singular","flat":"noun, nominative feminine singular","features":{"pos":"N","case":"nom","gender":"f","number":"s"}},{"lemma":"ὅταν","code":"C","line1":"conjunction","line2":"","flat":"conjunction","features":{"pos":"C"}},{"lemma":"ὁ","code":"T nom f p","line1":"article","line2":"nominative · feminine · plural","flat":"article, nominative feminine plural","features":{"pos":"T","case":"nom","gender":"f","number":"p"}},{"lemma":"περιέχω","code":"V ptc pres act nom f p","line1":"participle · present · active","line2":"nominative · feminine · plural","flat":"present active participle, nominative feminine plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"act","case":"nom","gender":"f","number":"p"}},{"lemma":"ὁ","code":"T acc f s","line1":"article","line2":"accusative · feminine · singular","flat":"article, accusative feminine singular","features":{"pos":"T","case":"acc","gender":"f","number":"s"}},{"lemma":"γωνία","code":"N acc f s","line1":"noun","line2":"accusative · feminine · singular","flat":"noun, accusative feminine singular","features":{"pos":"N","case":"acc","gender":"f","number":"s"}},{"lemma":"γραμμή","code":"N nom f p","line1":"noun","line2":"nominative · feminine · plural","flat":"noun, nominative feminine plural","features":{"pos":"N","case":"nom","gender":"f","number":"p"}},{"lemma":"εὐθύς","code":"A nom f p","line1":"adjective","line2":"nominative · feminine · plural","flat":"adjective, nominative feminine plural","features":{"pos":"A","case":"nom","gender":"f","number":"p"}},{"lemma":"εἰμί","code":"V sub pres act 3 p","line1":"subjunctive · present · active","line2":"third person · plural","flat":"present active subjunctive, third person plural","features":{"pos":"V","mood":"sub","tense":"pres","voice":"act","person":"3","number":"p"}},{"lemma":"εὐθύγραμμος","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"καλέω","code":"V ind pres mp 3 s","line1":"indicative · present · middle/passive","line2":"third person · singular","flat":"present middle/passive indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"mp","person":"3","number":"s"}},{"lemma":"ἐπί","code":"P +acc elided","line1":"preposition · with accusative","line2":"elided before a vowel","flat":"preposition with accusative","features":{"pos":"P","gov":"+acc","elided":"elided"}},{"lemma":"εὐθύς","code":"A acc f s","line1":"adjective","line2":"accusative · feminine · singular","flat":"adjective, accusative feminine singular","features":{"pos":"A","case":"acc","gender":"f","number":"s"}},{"lemma":"ἵστημι","code":"V ptc aor pas nom f s","line1":"participle · aorist · passive","line2":"nominative · feminine · singular","flat":"aorist passive participle, nominative feminine singular","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"nom","gender":"f","number":"s"}},{"lemma":"ὁ","code":"T acc f p","line1":"article","line2":"accusative · feminine · plural","flat":"article, accusative feminine plural","features":{"pos":"T","case":"acc","gender":"f","number":"p"}},{"lemma":"ἐφεξῆς","code":"D","line1":"adverb","line2":"","flat":"adverb","features":{"pos":"D"}},{"lemma":"γωνία","code":"N acc f p","line1":"noun","line2":"accusative · feminine · plural","flat":"noun, accusative feminine plural","features":{"pos":"N","case":"acc","gender":"f","number":"p"}},{"lemma":"ἴσος","code":"A acc f p","line1":"adjective","line2":"accusative · feminine · plural","flat":"adjective, accusative feminine plural","features":{"pos":"A","case":"acc","gender":"f","number":"p"}},{"lemma":"ἀλλήλων","code":"R dat f p","line1":"pronoun","line2":"dative · feminine · plural","flat":"pronoun, dative feminine plural","features":{"pos":"R","case":"dat","gender":"f","number":"p"}},{"lemma":"ποιέω","code":"V sub pres act 3 s","line1":"subjunctive · present · active","line2":"third person · singular","flat":"present active subjunctive, third person singular","features":{"pos":"V","mood":"sub","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"ὀρθός","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"ἑκάτερος","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"ἴσος","code":"A gen f p","line1":"adjective","line2":"genitive · feminine · plural","flat":"adjective, genitive feminine plural","features":{"pos":"A","case":"gen","gender":"f","number":"p"}},{"lemma":"γωνία","code":"N gen f p","line1":"noun","line2":"genitive · feminine · plural","flat":"noun, genitive feminine plural","features":{"pos":"N","case":"gen","gender":"f","number":"p"}},{"lemma":"εἰμί","code":"V ind pres act 3 s","line1":"indicative · present · active","line2":"third person · singular","flat":"present active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"ἐφίστημι","code":"V ptc perf act nom f s","line1":"participle · perfect · active","line2":"nominative · feminine · singular","flat":"perfect active participle, nominative feminine singular","features":{"pos":"V","mood":"ptc","tense":"perf","voice":"act","case":"nom","gender":"f","number":"s"}},{"lemma":"κάθετος","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"ἐπί","code":"P +acc elided","line1":"preposition · with accusative","line2":"elided before a vowel","flat":"preposition with accusative","features":{"pos":"P","gov":"+acc","elided":"elided"}},{"lemma":"ὅς","code":"R acc f s","line1":"pronoun","line2":"accusative · feminine · singular","flat":"pronoun, accusative feminine singular","features":{"pos":"R","case":"acc","gender":"f","number":"s"}},{"lemma":"ἐφίστημι","code":"V ind perf act 3 s","line1":"indicative · perfect · active","line2":"third person · singular","flat":"perfect active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"perf","voice":"act","person":"3","number":"s"}},{"lemma":"ἀμβλύς","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"μέγας","code":"A comp nom f s","line1":"adjective · comparative","line2":"nominative · feminine · singular","flat":"adjective comparative, nominative feminine singular","features":{"pos":"A","degree":"comp","case":"nom","gender":"f","number":"s"}},{"lemma":"ὀρθός","code":"A gen f s","line1":"adjective","line2":"genitive · feminine · singular","flat":"adjective, genitive feminine singular","features":{"pos":"A","case":"gen","gender":"f","number":"s"}},{"lemma":"ὀξύς","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"ἐλάσσων","code":"A comp nom f s","line1":"adjective · comparative","line2":"nominative · feminine · singular","flat":"adjective comparative, nominative feminine singular","features":{"pos":"A","degree":"comp","case":"nom","gender":"f","number":"s"}},{"lemma":"ὅρος","code":"N nom m s","line1":"noun","line2":"nominative · masculine · singular","flat":"noun, nominative masculine singular","features":{"pos":"N","case":"nom","gender":"m","number":"s"}},{"lemma":"εἰμί","code":"V ind pres act 3 s","line1":"indicative · present · active","line2":"third person · singular","flat":"present active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"ὅς","code":"R nom n s","line1":"pronoun","line2":"nominative · neuter · singular","flat":"pronoun, nominative neuter singular","features":{"pos":"R","case":"nom","gender":"n","number":"s"}},{"lemma":"τις","code":"R gen n s","line1":"pronoun","line2":"genitive · neuter · singular","flat":"pronoun, genitive neuter singular","features":{"pos":"R","case":"gen","gender":"n","number":"s"}},{"lemma":"πέρας","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"σχῆμα","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"ὁ","code":"T nom n s","line1":"article","line2":"nominative · neuter · singular","flat":"article, nominative neuter singular","features":{"pos":"T","case":"nom","gender":"n","number":"s"}},{"lemma":"ὑπό","code":"P +gen","line1":"preposition · with genitive","line2":"","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen"}},{"lemma":"τις","code":"R gen m s","line1":"pronoun","line2":"genitive · masculine · singular","flat":"pronoun, genitive masculine singular","features":{"pos":"R","case":"gen","gender":"m","number":"s"}},{"lemma":"ἤ","code":"C","line1":"conjunction","line2":"","flat":"conjunction","features":{"pos":"C"}},{"lemma":"τις","code":"R gen m p","line1":"pronoun","line2":"genitive · masculine · plural","flat":"pronoun, genitive masculine plural","features":{"pos":"R","case":"gen","gender":"m","number":"p"}},{"lemma":"ὅρος","code":"N gen m p","line1":"noun","line2":"genitive · masculine · plural","flat":"noun, genitive masculine plural","features":{"pos":"N","case":"gen","gender":"m","number":"p"}},{"lemma":"περιέχω","code":"V ptc pres mp nom n s","line1":"participle · present · middle/passive","line2":"nominative · neuter · singular","flat":"present middle/passive participle, nominative neuter singular","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"mp","case":"nom","gender":"n","number":"s"}},{"lemma":"κύκλος","code":"N nom m s","line1":"noun","line2":"nominative · masculine · singular","flat":"noun, nominative masculine singular","features":{"pos":"N","case":"nom","gender":"m","number":"s"}},{"lemma":"εἰμί","code":"V ind pres act 3 s","line1":"indicative · present · active","line2":"third person · singular","flat":"present active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"σχῆμα","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"ἐπίπεδος","code":"A nom n s","line1":"adjective","line2":"nominative · neuter · singular","flat":"adjective, nominative neuter singular","features":{"pos":"A","case":"nom","gender":"n","number":"s"}},{"lemma":"ὑπό","code":"P +gen","line1":"preposition · with genitive","line2":"","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen"}},{"lemma":"εἷς","code":"M gen f s","line1":"numeral","line2":"genitive · feminine · singular","flat":"numeral, genitive feminine singular","features":{"pos":"M","case":"gen","gender":"f","number":"s"}},{"lemma":"ὅς","code":"R nom f s","line1":"pronoun","line2":"nominative · feminine · singular","flat":"pronoun, nominative feminine singular","features":{"pos":"R","case":"nom","gender":"f","number":"s"}},{"lemma":"περιφέρεια","code":"N nom f s","line1":"noun","line2":"nominative · feminine · singular","flat":"noun, nominative feminine singular","features":{"pos":"N","case":"nom","gender":"f","number":"s"}},{"lemma":"ἀπό","code":"P +gen elided","line1":"preposition · with genitive","line2":"elided before a vowel","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen","elided":"elided"}},{"lemma":"εἷς","code":"M gen n s","line1":"numeral","line2":"genitive · neuter · singular","flat":"numeral, genitive neuter singular","features":{"pos":"M","case":"gen","gender":"n","number":"s"}},{"lemma":"σημεῖον","code":"N gen n s","line1":"noun","line2":"genitive · neuter · singular","flat":"noun, genitive neuter singular","features":{"pos":"N","case":"gen","gender":"n","number":"s"}},{"lemma":"ὁ","code":"T gen n p","line1":"article","line2":"genitive · neuter · plural","flat":"article, genitive neuter plural","features":{"pos":"T","case":"gen","gender":"n","number":"p"}},{"lemma":"ἐντός","code":"D","line1":"adverb","line2":"","flat":"adverb","features":{"pos":"D"}},{"lemma":"ὁ","code":"T gen n s","line1":"article","line2":"genitive · neuter · singular","flat":"article, genitive neuter singular","features":{"pos":"T","case":"gen","gender":"n","number":"s"}},{"lemma":"σχῆμα","code":"N gen n s","line1":"noun","line2":"genitive · neuter · singular","flat":"noun, genitive neuter singular","features":{"pos":"N","case":"gen","gender":"n","number":"s"}},{"lemma":"κεῖμαι","code":"V ptc pres mp gen n p","line1":"participle · present · middle/passive","line2":"genitive · neuter · plural","flat":"present middle/passive participle, genitive neuter plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"mp","case":"gen","gender":"n","number":"p"}},{"lemma":"πᾶς","code":"A nom f p","line1":"adjective","line2":"nominative · feminine · plural","flat":"adjective, nominative feminine plural","features":{"pos":"A","case":"nom","gender":"f","number":"p"}},{"lemma":"προσπίπτω","code":"V ptc pres act nom f p","line1":"participle · present · active","line2":"nominative · feminine · plural","flat":"present active participle, nominative feminine plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"act","case":"nom","gender":"f","number":"p"}},{"lemma":"ὁ","code":"T gen m s","line1":"article","line2":"genitive · masculine · singular","flat":"article, genitive masculine singular","features":{"pos":"T","case":"gen","gender":"m","number":"s"}},{"lemma":"κύκλος","code":"N gen m s","line1":"noun","line2":"genitive · masculine · singular","flat":"noun, genitive masculine singular","features":{"pos":"N","case":"gen","gender":"m","number":"s"}},{"lemma":"περιφέρεια","code":"N acc f s","line1":"noun","line2":"accusative · feminine · singular","flat":"noun, accusative feminine singular","features":{"pos":"N","case":"acc","gender":"f","number":"s"}},{"lemma":"ἴσος","code":"A nom f p","line1":"adjective","line2":"nominative · feminine · plural","flat":"adjective, nominative feminine plural","features":{"pos":"A","case":"nom","gender":"f","number":"p"}},{"lemma":"εἰμί","code":"V ind pres act 3 p","line1":"indicative · present · active","line2":"third person · plural","flat":"present active indicative, third person plural","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"p"}},{"lemma":"κέντρον","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"σημεῖον","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"αἰτέω","code":"V imp perf mp 3 s","line1":"imperative · perfect · middle/passive","line2":"third person · singular","flat":"perfect middle/passive imperative, third person singular","features":{"pos":"V","mood":"imp","tense":"perf","voice":"mp","person":"3","number":"s"}},{"lemma":"ἀπό","code":"P +gen","line1":"preposition · with genitive","line2":"","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen"}},{"lemma":"πᾶς","code":"A gen n s","line1":"adjective","line2":"genitive · neuter · singular","flat":"adjective, genitive neuter singular","features":{"pos":"A","case":"gen","gender":"n","number":"s"}},{"lemma":"ἐπί","code":"P +acc","line1":"preposition · with accusative","line2":"","flat":"preposition with accusative","features":{"pos":"P","gov":"+acc"}},{"lemma":"πᾶς","code":"A acc n s","line1":"adjective","line2":"accusative · neuter · singular","flat":"adjective, accusative neuter singular","features":{"pos":"A","case":"acc","gender":"n","number":"s"}},{"lemma":"σημεῖον","code":"N acc n s","line1":"noun","line2":"accusative · neuter · singular","flat":"noun, accusative neuter singular","features":{"pos":"N","case":"acc","gender":"n","number":"s"}},{"lemma":"γραμμή","code":"N acc f s","line1":"noun","line2":"accusative · feminine · singular","flat":"noun, accusative feminine singular","features":{"pos":"N","case":"acc","gender":"f","number":"s"}},{"lemma":"ἄγω","code":"V inf aor act","line1":"infinitive · aorist · active","line2":"","flat":"aorist active infinitive","features":{"pos":"V","mood":"inf","tense":"aor","voice":"act"}},{"lemma":"περαίνω","code":"V ptc perf mp acc f s","line1":"participle · perfect · middle/passive","line2":"accusative · feminine · singular","flat":"perfect middle/passive participle, accusative feminine singular","features":{"pos":"V","mood":"ptc","tense":"perf","voice":"mp","case":"acc","gender":"f","number":"s"}},{"lemma":"κατά","code":"P +acc","line1":"preposition · with accusative","line2":"","flat":"preposition with accusative","features":{"pos":"P","gov":"+acc"}},{"lemma":"ὁ","code":"T acc n s","line1":"article","line2":"accusative · neuter · singular","flat":"article, accusative neuter singular","features":{"pos":"T","case":"acc","gender":"n","number":"s"}},{"lemma":"συνεχής","code":"A acc n s","line1":"adjective","line2":"accusative · neuter · singular","flat":"adjective, accusative neuter singular","features":{"pos":"A","case":"acc","gender":"n","number":"s"}},{"lemma":"ἐκβάλλω","code":"V inf aor act","line1":"infinitive · aorist · active","line2":"","flat":"aorist active infinitive","features":{"pos":"V","mood":"inf","tense":"aor","voice":"act"}},{"lemma":"πᾶς","code":"A dat n s","line1":"adjective","line2":"dative · neuter · singular","flat":"adjective, dative neuter singular","features":{"pos":"A","case":"dat","gender":"n","number":"s"}},{"lemma":"κέντρον","code":"N dat n s","line1":"noun","line2":"dative · neuter · singular","flat":"noun, dative neuter singular","features":{"pos":"N","case":"dat","gender":"n","number":"s"}},{"lemma":"διάστημα","code":"N dat n s","line1":"noun","line2":"dative · neuter · singular","flat":"noun, dative neuter singular","features":{"pos":"N","case":"dat","gender":"n","number":"s"}},{"lemma":"κύκλος","code":"N acc m s","line1":"noun","line2":"accusative · masculine · singular","flat":"noun, accusative masculine singular","features":{"pos":"N","case":"acc","gender":"m","number":"s"}},{"lemma":"γράφω","code":"V inf pres mp","line1":"infinitive · present · middle/passive","line2":"","flat":"present middle/passive infinitive","features":{"pos":"V","mood":"inf","tense":"pres","voice":"mp"}},{"lemma":"πᾶς","code":"A acc f p","line1":"adjective","line2":"accusative · feminine · plural","flat":"adjective, accusative feminine plural","features":{"pos":"A","case":"acc","gender":"f","number":"p"}},{"lemma":"ὀρθός","code":"A acc f p","line1":"adjective","line2":"accusative · feminine · plural","flat":"adjective, accusative feminine plural","features":{"pos":"A","case":"acc","gender":"f","number":"p"}},{"lemma":"εἰμί","code":"V inf pres act","line1":"infinitive · present · active","line2":"","flat":"present active infinitive","features":{"pos":"V","mood":"inf","tense":"pres","voice":"act"}},{"lemma":"ἐάν","code":"C","line1":"conjunction","line2":"","flat":"conjunction","features":{"pos":"C"}},{"lemma":"εἰς","code":"P +acc","line1":"preposition · with accusative","line2":"","flat":"preposition with accusative","features":{"pos":"P","gov":"+acc"}},{"lemma":"δύο","code":"M acc f p","line1":"numeral","line2":"accusative · feminine · plural","flat":"numeral, accusative feminine plural","features":{"pos":"M","case":"acc","gender":"f","number":"p"}},{"lemma":"εὐθύς","code":"A acc f p","line1":"adjective","line2":"accusative · feminine · plural","flat":"adjective, accusative feminine plural","features":{"pos":"A","case":"acc","gender":"f","number":"p"}},{"lemma":"ἐμπίπτω","code":"V ptc pres act nom f s","line1":"participle · present · active","line2":"nominative · feminine · singular","flat":"present active participle, nominative feminine singular","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"act","case":"nom","gender":"f","number":"s"}},{"lemma":"ὁ","code":"T acc n p","line1":"article","line2":"accusative · neuter · plural","flat":"article, accusative neuter plural","features":{"pos":"T","case":"acc","gender":"n","number":"p"}},{"lemma":"αὐτός","code":"R acc n p","line1":"pronoun","line2":"accusative · neuter · plural","flat":"pronoun, accusative neuter plural","features":{"pos":"R","case":"acc","gender":"n","number":"p"}},{"lemma":"μέρος","code":"N acc n p","line1":"noun","line2":"accusative · neuter · plural","flat":"noun, accusative neuter plural","features":{"pos":"N","case":"acc","gender":"n","number":"p"}},{"lemma":"ὀρθός","code":"A gen f p","line1":"adjective","line2":"genitive · feminine · plural","flat":"adjective, genitive feminine plural","features":{"pos":"A","case":"gen","gender":"f","number":"p"}},{"lemma":"ἐλάσσων","code":"A comp acc f p","line1":"adjective · comparative","line2":"accusative · feminine · plural","flat":"adjective comparative, accusative feminine plural","features":{"pos":"A","degree":"comp","case":"acc","gender":"f","number":"p"}},{"lemma":"ἐκβάλλω","code":"V ptc pres mp acc f p","line1":"participle · present · middle/passive","line2":"accusative · feminine · plural","flat":"present middle/passive participle, accusative feminine plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"mp","case":"acc","gender":"f","number":"p"}},{"lemma":"ἄπειρος","code":"A acc n s","line1":"adjective","line2":"accusative · neuter · singular","flat":"adjective, accusative neuter singular","features":{"pos":"A","case":"acc","gender":"n","number":"s"}},{"lemma":"συμπίπτω","code":"V inf pres act","line1":"infinitive · present · active","line2":"","flat":"present active infinitive","features":{"pos":"V","mood":"inf","tense":"pres","voice":"act"}},{"lemma":"ὅς","code":"R acc n p","line1":"pronoun","line2":"accusative · neuter · plural","flat":"pronoun, accusative neuter plural","features":{"pos":"R","case":"acc","gender":"n","number":"p"}},{"lemma":"εἰμί","code":"V ind pres act 3 p","line1":"indicative · present · active","line2":"third person · plural","flat":"present active indicative, third person plural","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"p"}},{"lemma":"ἐλάσσων","code":"A comp nom f p","line1":"adjective · comparative","line2":"nominative · feminine · plural","flat":"adjective comparative, nominative feminine plural","features":{"pos":"A","degree":"comp","case":"nom","gender":"f","number":"p"}},{"lemma":"ὁ","code":"T nom n p","line1":"article","line2":"nominative · neuter · plural","flat":"article, nominative neuter plural","features":{"pos":"T","case":"nom","gender":"n","number":"p"}},{"lemma":"ὁ","code":"T dat n s","line1":"article","line2":"dative · neuter · singular","flat":"article, dative neuter singular","features":{"pos":"T","case":"dat","gender":"n","number":"s"}},{"lemma":"αὐτός","code":"R dat n s","line1":"pronoun","line2":"dative · neuter · singular","flat":"pronoun, dative neuter singular","features":{"pos":"R","case":"dat","gender":"n","number":"s"}},{"lemma":"ἴσος","code":"A nom n p","line1":"adjective","line2":"nominative · neuter · plural","flat":"adjective, nominative neuter plural","features":{"pos":"A","case":"nom","gender":"n","number":"p"}},{"lemma":"ἀλλήλων","code":"R dat n p","line1":"pronoun","line2":"dative · neuter · plural","flat":"pronoun, dative neuter plural","features":{"pos":"R","case":"dat","gender":"n","number":"p"}},{"lemma":"ἴσος","code":"A dat n p","line1":"adjective","line2":"dative · neuter · plural","flat":"adjective, dative neuter plural","features":{"pos":"A","case":"dat","gender":"n","number":"p"}},{"lemma":"προστίθημι","code":"V sub aor pas 3 s","line1":"subjunctive · aorist · passive","line2":"third person · singular","flat":"aorist passive subjunctive, third person singular","features":{"pos":"V","mood":"sub","tense":"aor","voice":"pas","person":"3","number":"s"}},{"lemma":"ὅλος","code":"A nom n p","line1":"adjective","line2":"nominative · neuter · plural","flat":"adjective, nominative neuter plural","features":{"pos":"A","case":"nom","gender":"n","number":"p"}},{"lemma":"ἴσος","code":"A gen n p","line1":"adjective","line2":"genitive · neuter · plural","flat":"adjective, genitive neuter plural","features":{"pos":"A","case":"gen","gender":"n","number":"p"}},{"lemma":"ἀφαιρέω","code":"V sub aor pas 3 s","line1":"subjunctive · aorist · passive","line2":"third person · singular","flat":"aorist passive subjunctive, third person singular","features":{"pos":"V","mood":"sub","tense":"aor","voice":"pas","person":"3","number":"s"}},{"lemma":"καταλείπω","code":"V ptc pres mp nom n p","line1":"participle · present · middle/passive","line2":"nominative · neuter · plural","flat":"present middle/passive participle, nominative neuter plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"mp","case":"nom","gender":"n","number":"p"}},{"lemma":"ἐφαρμόζω","code":"V ptc pres act nom n p","line1":"participle · present · active","line2":"nominative · neuter · plural","flat":"present active participle, nominative neuter plural","features":{"pos":"V","mood":"ptc","tense":"pres","voice":"act","case":"nom","gender":"n","number":"p"}},{"lemma":"ἀλλήλων","code":"R acc n p","line1":"pronoun","line2":"accusative · neuter · plural","flat":"pronoun, accusative neuter plural","features":{"pos":"R","case":"acc","gender":"n","number":"p"}},{"lemma":"ὅλος","code":"A nom n s","line1":"adjective","line2":"nominative · neuter · singular","flat":"adjective, nominative neuter singular","features":{"pos":"A","case":"nom","gender":"n","number":"s"}},{"lemma":"μέρος","code":"N gen n s","line1":"noun","line2":"genitive · neuter · singular","flat":"noun, genitive neuter singular","features":{"pos":"N","case":"gen","gender":"n","number":"s"}},{"lemma":"μέγας","code":"A comp nom n s","line1":"adjective · comparative","line2":"nominative · neuter · singular","flat":"adjective comparative, nominative neuter singular","features":{"pos":"A","degree":"comp","case":"nom","gender":"n","number":"s"}},{"lemma":"ἐπί","code":"P +gen","line1":"preposition · with genitive","line2":"","flat":"preposition with genitive","features":{"pos":"P","gov":"+gen"}},{"lemma":"ὁ","code":"T gen f s","line1":"article","line2":"genitive · feminine · singular","flat":"article, genitive feminine singular","features":{"pos":"T","case":"gen","gender":"f","number":"s"}},{"lemma":"δίδωμι","code":"V ptc aor pas gen f s","line1":"participle · aorist · passive","line2":"genitive · feminine · singular","flat":"aorist passive participle, genitive feminine singular","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"gen","gender":"f","number":"s"}},{"lemma":"περαίνω","code":"V ptc perf mp gen f s","line1":"participle · perfect · middle/passive","line2":"genitive · feminine · singular","flat":"perfect middle/passive participle, genitive feminine singular","features":{"pos":"V","mood":"ptc","tense":"perf","voice":"mp","case":"gen","gender":"f","number":"s"}},{"lemma":"τρίγωνον","code":"N acc n s","line1":"noun","line2":"accusative · neuter · singular","flat":"noun, accusative neuter singular","features":{"pos":"N","case":"acc","gender":"n","number":"s"}},{"lemma":"ἰσόπλευρος","code":"A acc n s","line1":"adjective","line2":"accusative · neuter · singular","flat":"adjective, accusative neuter singular","features":{"pos":"A","case":"acc","gender":"n","number":"s"}},{"lemma":"συνίστημι","code":"V inf aor mid","line1":"infinitive · aorist · middle","line2":"","flat":"aorist middle infinitive","features":{"pos":"V","mood":"inf","tense":"aor","voice":"mid"}},{"lemma":"εἰμί","code":"V imp pres act 3 s","line1":"imperative · present · active","line2":"third person · singular","flat":"present active imperative, third person singular","features":{"pos":"V","mood":"imp","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"δίδωμι","code":"V ptc aor pas nom f s","line1":"participle · aorist · passive","line2":"nominative · feminine · singular","flat":"aorist passive participle, nominative feminine singular","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"nom","gender":"f","number":"s"}},{"lemma":"περαίνω","code":"V ptc perf mp nom f s","line1":"participle · perfect · middle/passive","line2":"nominative · feminine · singular","flat":"perfect middle/passive participle, nominative feminine singular","features":{"pos":"V","mood":"ptc","tense":"perf","voice":"mp","case":"nom","gender":"f","number":"s"}},{"lemma":"δεῖ","code":"V ind pres act 3 s","line1":"indicative · present · active","line2":"third person · singular","flat":"present active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"s"}},{"lemma":"δή","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"μέν","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"γράφω","code":"V imp perf mp 3 s","line1":"imperative · perfect · middle/passive","line2":"third person · singular","flat":"perfect middle/passive imperative, third person singular","features":{"pos":"V","mood":"imp","tense":"perf","voice":"mp","person":"3","number":"s"}},{"lemma":"ὁ","code":"T nom m s","line1":"article","line2":"nominative · masculine · singular","flat":"article, nominative masculine singular","features":{"pos":"T","case":"nom","gender":"m","number":"s"}},{"lemma":"πάλιν","code":"D","line1":"adverb","line2":"","flat":"adverb","features":{"pos":"D"}},{"lemma":"κατά","code":"P +acc elided","line1":"preposition · with accusative","line2":"elided before a vowel","flat":"preposition with accusative","features":{"pos":"P","gov":"+acc","elided":"elided"}},{"lemma":"ὅς","code":"R acc n s","line1":"pronoun","line2":"accusative · neuter · singular","flat":"pronoun, accusative neuter singular","features":{"pos":"R","case":"acc","gender":"n","number":"s"}},{"lemma":"τέμνω","code":"V ind pres act 3 p","line1":"indicative · present · active","line2":"third person · plural","flat":"present active indicative, third person plural","features":{"pos":"V","mood":"ind","tense":"pres","voice":"act","person":"3","number":"p"}},{"lemma":"ἀλλήλων","code":"R acc m p","line1":"pronoun","line2":"accusative · masculine · plural","flat":"pronoun, accusative masculine plural","features":{"pos":"R","case":"acc","gender":"m","number":"p"}},{"lemma":"ὁ","code":"T nom m p","line1":"article","line2":"nominative · masculine · plural","flat":"article, nominative masculine plural","features":{"pos":"T","case":"nom","gender":"m","number":"p"}},{"lemma":"κύκλος","code":"N nom m p","line1":"noun","line2":"nominative · masculine · plural","flat":"noun, nominative masculine plural","features":{"pos":"N","case":"nom","gender":"m","number":"p"}},{"lemma":"σημεῖον","code":"N acc n p","line1":"noun","line2":"accusative · neuter · plural","flat":"noun, accusative neuter plural","features":{"pos":"N","case":"acc","gender":"n","number":"p"}},{"lemma":"ἐπιζεύγνυμι","code":"V imp perf mp 3 p","line1":"imperative · perfect · middle/passive","line2":"third person · plural","flat":"perfect middle/passive imperative, third person plural","features":{"pos":"V","mood":"imp","tense":"perf","voice":"mp","person":"3","number":"p"}},{"lemma":"ἐπεί","code":"C","line1":"conjunction","line2":"","flat":"conjunction","features":{"pos":"C"}},{"lemma":"ἴσος","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"ὁ","code":"T dat f s","line1":"article","line2":"dative · feminine · singular","flat":"article, dative feminine singular","features":{"pos":"T","case":"dat","gender":"f","number":"s"}},{"lemma":"δείκνυμι","code":"V ind aor pas 3 s","line1":"indicative · aorist · passive","line2":"third person · singular","flat":"aorist passive indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"aor","voice":"pas","person":"3","number":"s"}},{"lemma":"ἄρα","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"τρεῖς","code":"M nom f p","line1":"numeral","line2":"nominative · feminine · plural","flat":"numeral, nominative feminine plural","features":{"pos":"M","case":"nom","gender":"f","number":"p"}},{"lemma":"ἰσόπλευρος","code":"A nom n s","line1":"adjective","line2":"nominative · neuter · singular","flat":"adjective, nominative neuter singular","features":{"pos":"A","case":"nom","gender":"n","number":"s"}},{"lemma":"τρίγωνον","code":"N nom n s","line1":"noun","line2":"nominative · neuter · singular","flat":"noun, nominative neuter singular","features":{"pos":"N","case":"nom","gender":"n","number":"s"}},{"lemma":"συνίστημι","code":"V ind perf mp 3 s","line1":"indicative · perfect · middle/passive","line2":"third person · singular","flat":"perfect middle/passive indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"perf","voice":"mp","person":"3","number":"s"}},{"lemma":"ὅσπερ","code":"R acc n s","line1":"pronoun","line2":"accusative · neuter · singular","flat":"pronoun, accusative neuter singular","features":{"pos":"R","case":"acc","gender":"n","number":"s"}},{"lemma":"δεῖ","code":"V ind impf act 3 s","line1":"indicative · imperfect · active","line2":"third person · singular","flat":"imperfect active indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"impf","voice":"act","person":"3","number":"s"}},{"lemma":"ποιέω","code":"V inf aor act","line1":"infinitive · aorist · active","line2":"","flat":"aorist active infinitive","features":{"pos":"V","mood":"inf","tense":"aor","voice":"act"}},{"lemma":"πρός","code":"P +dat","line1":"preposition · with dative","line2":"","flat":"preposition with dative","features":{"pos":"P","gov":"+dat"}},{"lemma":"δίδωμι","code":"V ptc aor pas dat n s","line1":"participle · aorist · passive","line2":"dative · neuter · singular","flat":"aorist passive participle, dative neuter singular","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"dat","gender":"n","number":"s"}},{"lemma":"σημεῖον","code":"N dat n s","line1":"noun","line2":"dative · neuter · singular","flat":"noun, dative neuter singular","features":{"pos":"N","case":"dat","gender":"n","number":"s"}},{"lemma":"δίδωμι","code":"V ptc aor pas dat f s","line1":"participle · aorist · passive","line2":"dative · feminine · singular","flat":"aorist passive participle, dative feminine singular","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"dat","gender":"f","number":"s"}},{"lemma":"εὐθύς","code":"A dat f s","line1":"adjective","line2":"dative · feminine · singular","flat":"adjective, dative feminine singular","features":{"pos":"A","case":"dat","gender":"f","number":"s"}},{"lemma":"ἴσος","code":"A acc f s","line1":"adjective","line2":"accusative · feminine · singular","flat":"adjective, accusative feminine singular","features":{"pos":"A","case":"acc","gender":"f","number":"s"}},{"lemma":"τίθημι","code":"V inf aor mid","line1":"infinitive · aorist · middle","line2":"","flat":"aorist middle infinitive","features":{"pos":"V","mood":"inf","tense":"aor","voice":"mid"}},{"lemma":"δίδωμι","code":"V ptc aor pas nom n s","line1":"participle · aorist · passive","line2":"nominative · neuter · singular","flat":"aorist passive participle, nominative neuter singular","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"nom","gender":"n","number":"s"}},{"lemma":"ἐπιζεύγνυμι","code":"V imp perf mp 3 s","line1":"imperative · perfect · middle/passive","line2":"third person · singular","flat":"perfect middle/passive imperative, third person singular","features":{"pos":"V","mood":"imp","tense":"perf","voice":"mp","person":"3","number":"s"}},{"lemma":"γάρ","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"συνίστημι","code":"V imp perf mp 3 s","line1":"imperative · perfect · middle/passive","line2":"third person · singular","flat":"perfect middle/passive imperative, third person singular","features":{"pos":"V","mood":"imp","tense":"perf","voice":"mp","person":"3","number":"s"}},{"lemma":"αὐτός","code":"R gen f s","line1":"pronoun","line2":"genitive · feminine · singular","flat":"pronoun, genitive feminine singular","features":{"pos":"R","case":"gen","gender":"f","number":"s"}},{"lemma":"ἐκβάλλω","code":"V imp perf mp 3 p","line1":"imperative · perfect · middle/passive","line2":"third person · plural","flat":"perfect middle/passive imperative, third person plural","features":{"pos":"V","mood":"imp","tense":"perf","voice":"mp","person":"3","number":"p"}},{"lemma":"οὖν","code":"X","line1":"particle","line2":"","flat":"particle","features":{"pos":"X"}},{"lemma":"ὅς","code":"R gen f p","line1":"pronoun","line2":"genitive · feminine · plural","flat":"pronoun, genitive feminine plural","features":{"pos":"R","case":"gen","gender":"f","number":"p"}},{"lemma":"λοιπός","code":"A nom f s","line1":"adjective","line2":"nominative · feminine · singular","flat":"adjective, nominative feminine singular","features":{"pos":"A","case":"nom","gender":"f","number":"s"}},{"lemma":"λοιπός","code":"A dat f s","line1":"adjective","line2":"dative · feminine · singular","flat":"adjective, dative feminine singular","features":{"pos":"A","case":"dat","gender":"f","number":"s"}},{"lemma":"δίδωμι","code":"V ptc aor pas gen f p","line1":"participle · aorist · passive","line2":"genitive · feminine · plural","flat":"aorist passive participle, genitive feminine plural","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"gen","gender":"f","number":"p"}},{"lemma":"εὐθύς","code":"A gen f p","line1":"adjective","line2":"genitive · feminine · plural","flat":"adjective, genitive feminine plural","features":{"pos":"A","case":"gen","gender":"f","number":"p"}},{"lemma":"ἄνισος","code":"A gen f p","line1":"adjective","line2":"genitive · feminine · plural","flat":"adjective, genitive feminine plural","features":{"pos":"A","case":"gen","gender":"f","number":"p"}},{"lemma":"μέγας","code":"A comp gen f s","line1":"adjective · comparative","line2":"genitive · feminine · singular","flat":"adjective comparative, genitive feminine singular","features":{"pos":"A","degree":"comp","case":"gen","gender":"f","number":"s"}},{"lemma":"ἐλάσσων","code":"A comp dat f s","line1":"adjective · comparative","line2":"dative · feminine · singular","flat":"adjective comparative, dative feminine singular","features":{"pos":"A","degree":"comp","case":"dat","gender":"f","number":"s"}},{"lemma":"ἀφαιρέω","code":"V inf aor act","line1":"infinitive · aorist · active","line2":"","flat":"aorist active infinitive","features":{"pos":"V","mood":"inf","tense":"aor","voice":"act"}},{"lemma":"εἰμί","code":"V imp pres act 3 p","line1":"imperative · present · active","line2":"third person · plural","flat":"present active imperative, third person plural","features":{"pos":"V","mood":"imp","tense":"pres","voice":"act","person":"3","number":"p"}},{"lemma":"δίδωμι","code":"V ptc aor pas nom f p","line1":"participle · aorist · passive","line2":"nominative · feminine · plural","flat":"aorist passive participle, nominative feminine plural","features":{"pos":"V","mood":"ptc","tense":"aor","voice":"pas","case":"nom","gender":"f","number":"p"}},{"lemma":"δύο","code":"M nom f p","line1":"numeral","line2":"nominative · feminine · plural","flat":"numeral, nominative feminine plural","features":{"pos":"M","case":"nom","gender":"f","number":"p"}},{"lemma":"ἄνισος","code":"A nom f p","line1":"adjective","line2":"nominative · feminine · plural","flat":"adjective, nominative feminine plural","features":{"pos":"A","case":"nom","gender":"f","number":"p"}},{"lemma":"κεῖμαι","code":"V imp pres mp 3 s","line1":"imperative · present · middle/passive","line2":"third person · singular","flat":"present middle/passive imperative, third person singular","features":{"pos":"V","mood":"imp","tense":"pres","voice":"mp","person":"3","number":"s"}},{"lemma":"ἀλλά","code":"C","line1":"conjunction","line2":"","flat":"conjunction","features":{"pos":"C"}},{"lemma":"ὥστε","code":"C","line1":"conjunction","line2":"","flat":"conjunction","features":{"pos":"C"}},{"lemma":"ἀφαιρέω","code":"V ind perf mp 3 s","line1":"indicative · perfect · middle/passive","line2":"third person · singular","flat":"perfect middle/passive indicative, third person singular","features":{"pos":"V","mood":"ind","tense":"perf","voice":"mp","person":"3","number":"s"}}]};
+window.STOICHEIA_NO_SW = true;</script>
+  <script>// Stoicheia Reader: a web prototype of the Android UI spec.
+// Routes: #/ (Books), #/book/I (Contents), #/read/I.1[?p=3] (Reader), #/figure/I.1 (Figure view).
+// The morphology sheet, settings, menus and citation jump are overlays, never routes.
+(() => {
+  'use strict';
+  const C = window.STOICHEIA;
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const app = $('#app');
+  const passageById = Object.fromEntries(C.passages.map((p) => [p.id, p]));
+  const order = C.passages.map((p) => p.id);
+  const tokenIndex = {};
+  for (const p of C.passages) for (const para of p.paragraphs) for (const sp of para.spans) if (sp.id) tokenIndex[sp.id] = { p, para, sp };
+
+  // ---------- storage (per-viewer only; the app works without it) ----------
+  const store = {
+    get(key, fallback) { try { const v = localStorage.getItem('stoicheia.' + key); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } },
+    set(key, value) { try { localStorage.setItem('stoicheia.' + key, JSON.stringify(value)); } catch { /* storage unavailable */ } },
+  };
+  const DEFAULTS = { size: 22, spacing: 'normal', theme: 'system', gloss: false, principalParts: true, contrast: 'normal', awake: false };
+  let settings = { ...DEFAULTS, ...store.get('settings', {}) };
+  let bookmarks = store.get('bookmarks', []);
+  let position = store.get('position', null); // { passage, para, offset, pct }
+
+  // ---------- icons ----------
+  const ICON = {
+    back: '<path d="M15 5l-7 7 7 7"/>',
+    more: '<circle cx="12" cy="5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="19" r="1.3" fill="currentColor"/>',
+    jump: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+    star: '<path d="M12 3.6l2.5 5.3 5.8.7-4.3 4 1.1 5.8L12 16.6l-5.1 2.8 1.1-5.8-4.3-4 5.8-.7z"/>',
+    figure: '<circle cx="9" cy="13" r="5.5"/><circle cx="15" cy="13" r="5.5"/>',
+  };
+  const icon = (name, label, attrs = '') =>
+    `<button class="icon" aria-label="${label}" title="${label}" ${attrs}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg></button>`;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  // ---------- settings application ----------
+  const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+  const hostTheme = document.documentElement.dataset.theme; // set by an embedding viewer, if any
+  function applySettings() {
+    const root = document.documentElement;
+    const dark = settings.theme === 'dark' || (settings.theme === 'system' && (hostTheme ? hostTheme === 'dark' : darkQuery.matches));
+    root.dataset.theme = dark ? 'dark' : 'light';
+    root.dataset.contrast = settings.contrast;
+    root.style.setProperty('--text-size', settings.size + 'px');
+    root.style.setProperty('--line', { compact: 1.4, normal: 1.55, relaxed: 1.75 }[settings.spacing]);
+    $('meta[name=theme-color]').content = dark ? '#1D1C19' : '#F7F4EC';
+    keepAwake(settings.awake);
+  }
+  darkQuery.addEventListener('change', applySettings);
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && !wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+      if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch { /* not supported or not allowed */ }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && settings.awake) keepAwake(true); });
+  function saveSettings(patch) {
+    const anchor = currentRoute.name === 'read' ? readAnchor() : null;
+    settings = { ...settings, ...patch };
+    store.set('settings', settings);
+    applySettings();
+    if (anchor) restoreAnchor(anchor); // a font change must not lose the reading place
+    if (selected) renderMorph(false);
+  }
+
+  // ---------- routing ----------
+  let currentRoute = { name: null };
+  let routeKey = '';
+  const listScroll = {};
+  function parseHash() {
+    const h = location.hash.replace(/^#\/?/, '');
+    const [path, query] = h.split('?');
+    const parts = path.split('/').filter(Boolean);
+    const params = new URLSearchParams(query || '');
+    if (parts[0] === 'book' && parts[1]) return { name: 'book', book: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'read' && passageById[decodeURIComponent(parts[1])]) return { name: 'read', passage: decodeURIComponent(parts[1]), item: params.get('p') };
+    if (parts[0] === 'figure' && passageById[decodeURIComponent(parts[1])]) return { name: 'figure', passage: decodeURIComponent(parts[1]) };
+    return { name: 'books' };
+  }
+  function go(hash, { replace = false } = {}) {
+    const prev = location.hash || '#/';
+    if (replace) history.replaceState({ prev: history.state && history.state.prev }, '', hash);
+    else history.pushState({ prev }, '', hash);
+    route(false);
+  }
+  let lastDepth = 0;
+  const depthOf = (r) => ({ books: 0, book: 1, read: 2, figure: 3 })[r.name];
+  function route(isPop) {
+    const r = parseHash();
+    const key = location.hash || '#/';
+    if (key === routeKey && r.name === currentRoute.name) {
+      // Same screen: only an overlay changed (e.g. Back closed the sheet).
+      if (!(history.state && history.state.sheet) && selected) closeSheet(true);
+      return;
+    }
+    if (currentRoute.name === 'read') savePosition();
+    if (currentRoute.name === 'book') listScroll[routeKey] = scrollY;
+    closeAllOverlays();
+    const backward = depthOf(r) < lastDepth;
+    lastDepth = depthOf(r);
+    const prev = currentRoute;
+    currentRoute = r;
+    routeKey = key;
+    if (r.name === 'books') renderBooks(backward);
+    else if (r.name === 'book') renderContents(r.book, backward);
+    else if (r.name === 'read') renderReader(r, backward, isPop, prev);
+    else if (r.name === 'figure') renderFigure(r.passage);
+  }
+  addEventListener('popstate', () => route(true));
+  addEventListener('hashchange', () => route(true));
+
+  // ---------- Books ----------
+  function renderBooks(backward) {
+    const hint = !store.get('hintSeen', false);
+    const cont = position && passageById[position.passage];
+    const contText = cont ? firstWordsAt(cont, position.para) : '';
+    const marks = bookmarks.filter((id) => passageById[id]);
+    app.innerHTML = `
+      <header class="bar"><div class="title left">Στοιχεῖα</div>${icon('more', 'More', 'data-act="books-menu"')}</header>
+      <main class="screen ${backward ? 'back' : ''}">
+        <div class="lib-head"><div class="greek">${esc(C.work.title)}</div><div class="meta">Greek text · offline</div></div>
+        ${cont ? `<button class="card" data-act="continue">
+            <div class="row1"><span class="label">CONTINUE READING</span><span class="meta">${position.pct || 0}%</span></div>
+            <div class="cite">${esc(citeOf(cont, position.para))}</div>
+            <div class="greek">${esc(contText)}</div></button>` : ''}
+        ${hint ? `<div class="hint" role="note"><span>Tap any Greek word to parse it.</span><button class="textbtn" data-act="hint-ok">OK</button></div>` : ''}
+        <div class="section">Books</div>
+        <ul class="list">${C.books.map((b) => `<li><button class="rowbtn" data-go="#/book/${b.id}">
+            <span class="main"><span class="primary">${esc(b.title)}</span><div class="secondary">${esc(b.summary)}</div></span><span class="chev">›</span></button></li>`).join('')}</ul>
+        <div class="planned">More books planned</div>
+        ${marks.length ? `<div class="section">Bookmarks</div><ul class="list">${marks.map((id) => `<li><button class="rowbtn" data-go="#/read/${id}">
+            <span class="main"><span class="primary">${esc(passageLabel(passageById[id]))}</span><div class="secondary greek">${esc(passageById[id].firstWords)}</div></span><span class="chev">›</span></button></li>`).join('')}</ul>` : ''}
+      </main>`;
+    scrollTo(0, 0);
+    document.title = 'Στοιχεῖα Reader';
+  }
+
+  // ---------- Book contents ----------
+  function renderContents(bookId, backward) {
+    const book = C.books.find((b) => b.id === bookId) || C.books[0];
+    const ps = C.passages.filter((p) => p.book === book.id);
+    const last = position && position.passage;
+    const row = (p, primary, secondary, greek) => `<li><button class="rowbtn ${p.id === last ? 'last' : ''}" data-go="#/read/${p.id}">
+        <span class="main"><span class="primary">${esc(primary)}</span><div class="secondary ${greek ? 'greek' : ''}">${esc(secondary)}</div></span>
+        ${p.figure ? `<svg class="figmark" viewBox="0 0 24 24" aria-label="Has diagram"><g fill="none" stroke="currentColor" stroke-width="1.6">${ICON.figure}</g></svg>` : '<span class="chev">›</span>'}</button></li>`;
+    const found = ps.filter((p) => p.kind !== 'proposition');
+    const props = ps.filter((p) => p.kind === 'proposition');
+    app.innerHTML = `
+      <header class="bar">${icon('back', 'Back', 'data-act="back"')}<div class="title">${esc(book.title)}</div>${icon('jump', 'Jump to citation', 'data-act="jump"')}</header>
+      <main class="screen ${backward ? 'back' : ''}">
+        <div class="contents-head"><h1>${esc(book.title)}</h1><div class="greek">${esc(book.greekTitle)}</div></div>
+        <div class="section">Foundations</div>
+        <ul class="list">${found.map((p) => row(p, p.title, p.range + (p.planned ? ` · ${p.planned}` : ''))).join('')}</ul>
+        <div class="section">Propositions</div>
+        <ul class="list">${props.map((p) => row(p, `${p.id} · ${p.type}`, p.firstWords, true)).join('')}</ul>
+        <div class="planned">${esc(C.planned.propositions)}</div>
+      </main>`;
+    scrollTo(0, listScroll['#/book/' + book.id] || 0);
+    document.title = book.title + ' · Στοιχεῖα';
+  }
+
+  // ---------- Reader ----------
+  const passageLabel = (p) => (p.kind === 'proposition' ? `${p.id} · ${p.type}` : `${p.title} · ${p.id}`);
+  function citeOf(p, paraIdx) {
+    if (p.kind === 'proposition') return p.id;
+    const para = p.paragraphs[paraIdx || 0];
+    return para && para.cite ? para.cite : p.id;
+  }
+  function firstWordsAt(p, paraIdx) {
+    const para = p.paragraphs[paraIdx || 0] || p.paragraphs[0];
+    return para.text.split(/\s+/).slice(0, 5).join(' ') + '…';
+  }
+  function paragraphHTML(para) {
+    let out = '';
+    let i = 0;
+    for (const sp of para.spans) {
+      out += esc(para.text.slice(i, sp.s));
+      const s = esc(para.text.slice(sp.s, sp.e));
+      out += sp.id ? `<span class="w" data-t="${sp.id}">${s}</span>` : `<span class="lbl">${s}</span>`;
+      i = sp.e;
+    }
+    return out + esc(para.text.slice(i));
+  }
+  function renderReader(r, backward, isPop, prev) {
+    const p = passageById[r.passage];
+    const idx = order.indexOf(p.id);
+    const prevP = passageById[order[idx - 1]];
+    const nextP = passageById[order[idx + 1]];
+    const marked = bookmarks.includes(p.id);
+    const fig = p.figure ? `<button class="figure-inline in-text" data-act="figure" aria-label="Open diagram for ${p.id}">${figureSVG(C.figures[p.figure])}</button>` : '';
+    let body = '';
+    for (const [i, para] of p.paragraphs.entries()) {
+      if (para.role === 'item') body += `<div class="item" id="${para.id}" data-i="${i}"><span class="icite">${para.cite}</span><span class="ptext">${paragraphHTML(para)}</span></div>`;
+      else body += `<p id="${para.id}" data-i="${i}" class="${para.role === 'enunciation' ? 'enun' : ''}">${paragraphHTML(para)}</p>`;
+      if (para.role === 'enunciation') body += fig;
+    }
+    const label = `${p.greekTitle.toUpperCase()} · ${p.id}`;
+    app.innerHTML = `
+      <header class="bar" id="rbar">${icon('back', 'Back to contents', 'data-act="back"')}<div class="title">${esc(p.id)}</div>
+        <button class="icon ${marked ? 'on' : ''}" data-act="bookmark" aria-pressed="${marked}" aria-label="${marked ? 'Remove bookmark' : 'Bookmark'}" title="Bookmark"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.star}</svg></button>
+        ${icon('more', 'More', 'data-act="reader-menu"')}</header>
+      <main class="screen reader reader-wide ${backward ? 'back' : ''}">
+        <article>
+          <div class="plabel">${esc(label)}</div>
+          <div class="text" lang="grc" id="text">${body}</div>
+          <nav class="pnav" aria-label="Passages">
+            ${prevP ? `<button data-go="#/read/${prevP.id}">‹ ${esc(prevP.kind === 'proposition' ? prevP.id : prevP.paragraphs.at(-1).cite)}</button>` : '<span></span>'}
+            ${nextP ? `<button data-go="#/read/${nextP.id}">${esc(nextP.id)} ›</button>` : `<span class="later">${esc(C.planned.next)}</span>`}
+          </nav>
+        </article>
+        <aside class="side">${p.figure ? `<button class="figure-inline" data-act="figure" aria-label="Open diagram">${figureSVG(C.figures[p.figure])}</button>` : ''}<div id="side-morph"></div></aside>
+      </main>`;
+    document.title = `${p.id} · Στοιχεῖα`;
+    store.set('hintSeen', true);
+    // Where to land: an explicit item, the saved anchor for this passage, or the top.
+    const saved = position && position.passage === p.id ? position : null;
+    if (r.item) {
+      const el = document.getElementById(`euclid.${p.id}.p${Number(r.item) - 1}`);
+      requestAnimationFrame(() => { if (el) scrollTo(0, el.getBoundingClientRect().top + scrollY - 64); });
+    } else if (saved && (isPop || prev.name !== 'read' || prev.passage === p.id)) {
+      restoreAnchor(saved);
+    } else scrollTo(0, 0);
+    savePosition();
+  }
+
+  // Reading position = paragraph + character offset of the first visible character.
+  function readAnchor() {
+    const text = $('#text');
+    if (!text) return null;
+    const y = 64;
+    const paras = [...text.querySelectorAll('[data-i]')];
+    const para = paras.find((el) => el.getBoundingClientRect().bottom > y) || paras.at(-1);
+    if (!para) return null;
+    let offset = 0;
+    const rect = para.getBoundingClientRect();
+    if (rect.top < y) {
+      // First word whose line is still visible below the app bar (no hit-testing, so overlays don't interfere).
+      const words = [...para.querySelectorAll('.w, .lbl')];
+      const first = words.find((w) => w.getBoundingClientRect().bottom > y);
+      if (first) offset = textOffset(para, first.firstChild, 0);
+    }
+    const max = document.documentElement.scrollHeight - innerHeight;
+    return { passage: currentRoute.passage, para: Number(para.dataset.i), offset, pct: max > 0 ? Math.round((scrollY / max) * 100) : 100 };
+  }
+  function paraTextRoot(para) { return para.querySelector('.ptext') || para; }
+  function textOffset(para, node, off) {
+    const root = paraTextRoot(para);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let n = 0;
+    while (walker.nextNode()) {
+      if (walker.currentNode === node) return n + off;
+      n += walker.currentNode.length;
+    }
+    return 0;
+  }
+  function restoreAnchor(a) {
+    const para = document.querySelector(`#text [data-i="${a.para}"]`);
+    if (!para) return;
+    const doIt = () => {
+      let top = para.getBoundingClientRect().top;
+      if (a.offset > 0) {
+        const walker = document.createTreeWalker(paraTextRoot(para), NodeFilter.SHOW_TEXT);
+        let n = 0;
+        while (walker.nextNode()) {
+          const len = walker.currentNode.length;
+          if (n + len > a.offset) {
+            const range = document.createRange();
+            range.setStart(walker.currentNode, a.offset - n);
+            range.setEnd(walker.currentNode, Math.min(len, a.offset - n + 1));
+            const rr = range.getBoundingClientRect();
+            if (rr.height) top = rr.top;
+            break;
+          }
+          n += len;
+        }
+      }
+      scrollTo(0, Math.max(0, top + scrollY - 64));
+    };
+    doIt();
+    document.fonts && document.fonts.ready.then(() => { if (currentRoute.name === 'read') doIt(); });
+  }
+  function savePosition() {
+    if (currentRoute.name !== 'read') return;
+    const a = readAnchor();
+    if (a) { position = a; store.set('position', a); }
+  }
+  let saveTimer = 0;
+  let lastY = 0;
+  addEventListener('scroll', () => {
+    const bar = $('.bar');
+    if (bar) bar.classList.toggle('scrolled', scrollY > 4);
+    if (currentRoute.name === 'read') {
+      const rbar = $('#rbar');
+      const dy = scrollY - lastY;
+      if (rbar && Math.abs(dy) > 6) rbar.classList.toggle('hidden', dy > 0 && scrollY > 120);
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(savePosition, 700);
+    }
+    lastY = scrollY;
+  }, { passive: true });
+  addEventListener('pagehide', savePosition);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') savePosition(); });
+
+  // ---------- Morphology sheet ----------
+  let selected = null; // token id
+  let expanded = false;
+  const isWide = () => matchMedia('(min-width: 960px)').matches;
+  function selectToken(id) {
+    const wasOpen = !!selected;
+    document.querySelectorAll('.w.sel').forEach((el) => el.classList.remove('sel'));
+    selected = id;
+    const el = document.querySelector(`.w[data-t="${CSS.escape(id)}"]`);
+    if (el) el.classList.add('sel');
+    if (!wasOpen && !isWide()) history.pushState({ sheet: true, prev: history.state && history.state.prev }, '', location.href);
+    renderMorph(wasOpen);
+  }
+  function morphHTML() {
+    const { p, para, sp } = tokenIndex[selected];
+    const a = C.analyses[sp.a];
+    const lemma = C.lemmas[a.lemma] || {};
+    const surface = para.text.slice(sp.s, sp.e);
+    const showMore = expanded || isWide();
+    return `<div class="morph" aria-live="polite">
+      <div class="head"><span class="surface" lang="grc">${esc(surface)}</span><span class="cite">${esc(citeOf(p, p.paragraphs.indexOf(para)))}</span></div>
+      <div class="lemma" lang="grc">${esc(a.lemma)}</div>
+      <div class="parse"><div>${esc(a.line1)}</div>${a.line2 ? `<div>${esc(a.line2)}</div>` : ''}</div>
+      ${settings.gloss && lemma.gloss ? `<div class="gloss"><b>Gloss</b>${esc(lemma.gloss)}</div>` : ''}
+      ${showMore ? `<div class="more">
+          ${settings.principalParts && lemma.pp ? `<h3>Principal parts</h3><p lang="grc">${esc(lemma.pp)}</p>` : ''}
+          <h3>In this passage</h3><p class="src">Analysis chosen for this occurrence. Source: prototype hand annotation, not yet scholar-reviewed.</p></div>` : ''}
+      <div class="actions">
+        ${!isWide() && !expanded && lemma.pp && settings.principalParts ? '<button class="textbtn" data-act="expand">PRINCIPAL PARTS</button>' : ''}
+        <button class="textbtn" data-act="copy-token">COPY</button>
+        <button class="textbtn" data-act="toggle-gloss">${settings.gloss ? 'HIDE GLOSS' : 'SHOW GLOSS'}</button>
+      </div></div>`;
+  }
+  function renderMorph(replace) {
+    if (!selected) return;
+    const html = morphHTML();
+    if (isWide()) {
+      const side = $('#side-morph');
+      if (side) { side.innerHTML = html; if (replace) side.firstElementChild.classList.add('crossfade'); }
+      return;
+    }
+    let sheet = $('#morph-sheet');
+    if (!sheet) {
+      sheet = document.createElement('section');
+      sheet.id = 'morph-sheet';
+      sheet.className = 'sheet entering';
+      sheet.setAttribute('aria-label', 'Word analysis');
+      document.body.appendChild(sheet);
+      requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.remove('entering')));
+      attachDrag(sheet, () => { expanded = true; renderMorph(true); }, () => closeSheet());
+      $('.reader') && $('.reader').classList.add('sheet-pad');
+    }
+    sheet.innerHTML = '<span class="handle" aria-hidden="true"></span>' + html;
+    if (replace) sheet.querySelector('.morph').classList.add('crossfade');
+    requestAnimationFrame(keepSelectionVisible);
+  }
+  // The sheet must never cover the selected word: scroll the minimum needed.
+  function keepSelectionVisible() {
+    const el = document.querySelector('.w.sel');
+    const sheet = $('#morph-sheet');
+    if (!el || !sheet) return;
+    const r = el.getBoundingClientRect();
+    const limit = innerHeight - sheet.offsetHeight - 16;
+    if (r.bottom > limit) scrollBy({ top: r.bottom - limit, behavior: 'smooth' });
+    else if (r.top < 64) scrollBy({ top: r.top - 72, behavior: 'smooth' });
+  }
+  function closeSheet(fromPop = false) {
+    if (!selected) return;
+    selected = null;
+    expanded = false;
+    document.querySelectorAll('.w.sel').forEach((el) => el.classList.remove('sel'));
+    const sheet = $('#morph-sheet');
+    if (sheet) { sheet.classList.add('entering'); setTimeout(() => sheet.remove(), 200); }
+    const side = $('#side-morph');
+    if (side) side.innerHTML = '';
+    $('.reader') && $('.reader').classList.remove('sheet-pad');
+    if (!fromPop && history.state && history.state.sheet) history.back();
+  }
+  function attachDrag(sheet, onUp, onDown) {
+    let startY = null;
+    let dy = 0;
+    sheet.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('.handle') && sheet.scrollTop > 0) return;
+      if (e.target.closest('button')) return;
+      startY = e.clientY; dy = 0;
+    });
+    sheet.addEventListener('pointermove', (e) => {
+      if (startY == null) return;
+      dy = e.clientY - startY;
+      if (dy > 0) { sheet.style.transition = 'none'; sheet.style.transform = `translateY(${dy}px)`; }
+    });
+    const end = () => {
+      if (startY == null) return;
+      sheet.style.transition = ''; sheet.style.transform = '';
+      if (dy > 70) onDown(); else if (dy < -40) onUp();
+      startY = null;
+    };
+    sheet.addEventListener('pointerup', end);
+    sheet.addEventListener('pointercancel', end);
+  }
+
+  // ---------- Figures (data-driven SVG, spec §9) ----------
+  function figureSVG(fig) {
+    const pts = fig.points;
+    const circles = fig.circles.map((c) => {
+      const [cx, cy] = pts[c.center];
+      const [tx, ty] = pts[c.through];
+      return { cx, cy, r: Math.hypot(tx - cx, ty - cy) };
+    });
+    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
+    const grow = (x, y) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); };
+    Object.values(pts).forEach(([x, y]) => grow(x, y));
+    circles.forEach((c) => { grow(c.cx - c.r, c.cy - c.r); grow(c.cx + c.r, c.cy + c.r); });
+    const m = 0.22;
+    const S = 100; // units -> svg px
+    const X = (x) => ((x - minX + m) * S).toFixed(1);
+    const Y = (y) => ((maxY - y + m) * S).toFixed(1);
+    const w = (maxX - minX + 2 * m) * S;
+    const h = (maxY - minY + 2 * m) * S;
+    let out = `<svg viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}" role="img" aria-label="Diagram with points ${Object.keys(pts).join(', ')}">`;
+    circles.forEach((c) => { out += `<circle class="fig-line" cx="${X(c.cx)}" cy="${Y(c.cy)}" r="${(c.r * S).toFixed(1)}"/>`; });
+    fig.segments.forEach(([a, b]) => { out += `<line class="fig-line" x1="${X(pts[a][0])}" y1="${Y(pts[a][1])}" x2="${X(pts[b][0])}" y2="${Y(pts[b][1])}"/>`; });
+    Object.entries(fig.labels).forEach(([name, [dx, dy]]) => {
+      const [x, y] = pts[name];
+      out += `<text class="fig-label" x="${X(x + dx)}" y="${Y(y + dy)}" font-size="24" text-anchor="middle" dominant-baseline="central">${name}</text>`;
+    });
+    return out + '</svg>';
+  }
+  function renderFigure(passageId) {
+    const p = passageById[passageId];
+    app.innerHTML = `<div class="figview" role="dialog" aria-label="${p.id} figure">
+        <header class="bar">${icon('back', 'Back to text', 'data-act="back"')}<div class="title">${p.id} Figure</div><button class="textbtn" data-act="fig-reset">Reset</button></header>
+        <div class="figstage" id="stage">${figureSVG(C.figures[p.figure])}</div></div>`;
+    setupZoom($('#stage'));
+  }
+  let zoomReset = null;
+  function setupZoom(stage) {
+    const svg = stage.querySelector('svg');
+    let s = 1, tx = 0, ty = 0;
+    const apply = (anim) => {
+      svg.style.transition = anim ? 'transform 180ms ease' : 'none';
+      svg.style.transform = `translate(${tx}px, ${ty}px) scale(${s}) translate(-50%, -50%)`;
+    };
+    const zoomAt = (ns, cx, cy, anim) => {
+      ns = Math.min(6, Math.max(1, ns));
+      const r = stage.getBoundingClientRect();
+      const ox = cx - r.left - r.width / 2;
+      const oy = cy - r.top - r.height / 2;
+      tx = ox - ((ox - tx) * ns) / s;
+      ty = oy - ((oy - ty) * ns) / s;
+      s = ns;
+      if (s === 1) { tx = 0; ty = 0; }
+      apply(anim);
+    };
+    svg.style.left = '50%'; svg.style.top = '50%';
+    // Use translate on centre: position the svg's centre at stage centre.
+    svg.style.left = '0'; svg.style.top = '0';
+    const centre = () => { const r = stage.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
+    const base = () => { const [cx, cy] = centre(); svg.style.left = cx + 'px'; svg.style.top = cy + 'px'; };
+    base();
+    addEventListener('resize', base);
+    zoomReset = () => { s = 1; tx = 0; ty = 0; apply(true); };
+    apply(false);
+    const pointers = new Map();
+    let pinch = null;
+    let lastTap = 0;
+    stage.addEventListener('pointerdown', (e) => {
+      stage.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pointers.size === 2) {
+        const [[x1, y1], [x2, y2]] = [...pointers.values()];
+        pinch = { d: Math.hypot(x2 - x1, y2 - y1), s, mx: (x1 + x2) / 2, my: (y1 + y2) / 2 };
+      }
+      const now = Date.now();
+      if (pointers.size === 1 && now - lastTap < 300) zoomAt(s > 1.5 ? 1 : 2, e.clientX, e.clientY, true);
+      lastTap = now;
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      const [px, py] = pointers.get(e.pointerId);
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pointers.size === 2 && pinch) {
+        const [[x1, y1], [x2, y2]] = [...pointers.values()];
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        zoomAt((pinch.s * Math.hypot(x2 - x1, y2 - y1)) / pinch.d, mx, my, false);
+        tx += mx - pinch.mx; ty += my - pinch.my; pinch.mx = mx; pinch.my = my;
+        apply(false);
+      } else if (pointers.size === 1 && s > 1) {
+        tx += e.clientX - px; ty += e.clientY - py; apply(false);
+      }
+    });
+    const up = (e) => { pointers.delete(e.pointerId); if (pointers.size < 2) pinch = null; };
+    stage.addEventListener('pointerup', up);
+    stage.addEventListener('pointercancel', up);
+    stage.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(s * Math.exp(-e.deltaY / 300), e.clientX, e.clientY, false); }, { passive: false });
+  }
+
+  // ---------- overlays: menus, settings, about, jump ----------
+  function closeAllOverlays() {
+    document.querySelectorAll('.overlay').forEach((el) => el.remove());
+    const sheet = $('#morph-sheet');
+    if (sheet) sheet.remove();
+    selected = null; expanded = false;
+  }
+  function overlay(html) {
+    const el = document.createElement('div');
+    el.className = 'overlay';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    return el;
+  }
+  function closeOverlay(el) { if (el) el.remove(); }
+  function openMenu(items) {
+    const el = overlay(`<div class="menu-scrim" data-act="close-overlay"></div><div class="menu" role="menu">${items.map(([label, act]) => `<button role="menuitem" data-act="${act}">${label}</button>`).join('')}</div>`);
+    el.querySelector('.menu button').focus();
+  }
+  function openSheet(html, label) {
+    const el = overlay(`<div class="scrim" data-act="close-overlay"></div><section class="sheet entering" aria-label="${label}"><span class="handle" aria-hidden="true"></span>${html}</section>`);
+    const sheet = el.querySelector('.sheet');
+    requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.remove('entering')));
+    attachDrag(sheet, () => {}, () => closeOverlay(el));
+    return el;
+  }
+  function settingsHTML() {
+    const seg = (key, opts) => `<span class="seg" role="group">${opts.map(([v, l]) => `<button data-set="${key}" data-val="${v}" aria-pressed="${settings[key] === v}">${l}</button>`).join('')}</span>`;
+    const sw = (key, label) => `<div class="setting"><span class="name" id="lbl-${key}">${label}</span><button class="switch" role="switch" aria-labelledby="lbl-${key}" aria-checked="${!!settings[key]}" data-toggle="${key}"></button></div>`;
+    return `<div class="settings">
+      <h2>Reading</h2>
+      <div class="setting"><label for="size">Text size <span class="meta">${settings.size}</span></label><input id="size" type="range" min="18" max="30" step="1" value="${settings.size}"></div>
+      <div class="setting"><span class="name">Line spacing</span>${seg('spacing', [['compact', 'Compact'], ['normal', 'Normal'], ['relaxed', 'Relaxed']])}</div>
+      <div class="setting"><span class="name">Theme</span>${seg('theme', [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']])}</div>
+      ${sw('awake', 'Keep screen awake')}
+      <h2>Morphology</h2>
+      ${sw('gloss', 'Show brief gloss')}
+      ${sw('principalParts', 'Show principal parts')}
+      <div class="setting"><span class="name">Selection highlight</span>${seg('contrast', [['normal', 'Paper'], ['high', 'High contrast']])}</div>
+    </div>`;
+  }
+  let settingsEl = null;
+  function openSettings() {
+    settingsEl = openSheet(settingsHTML(), 'Settings');
+    bindSettings();
+  }
+  function bindSettings() {
+    const range = settingsEl.querySelector('#size');
+    range.addEventListener('input', () => { saveSettings({ size: Number(range.value) }); range.previousElementSibling.querySelector('.meta').textContent = range.value; });
+  }
+  function refreshSettings() {
+    if (!settingsEl) return;
+    const sheet = settingsEl.querySelector('.sheet');
+    sheet.innerHTML = '<span class="handle" aria-hidden="true"></span>' + settingsHTML();
+    bindSettings();
+  }
+  function openAbout() {
+    openSheet(`<div class="about">
+      <h2 class="section" style="margin-top:4px">About</h2>
+      <p>Stoicheia Reader: read Euclid in Greek, tap a form to see its lemma and grammatical analysis. Prototype build: Book I definitions 1–5, postulates, common notions and Proposition 1.</p>
+      <h2 class="section">Text attribution</h2>
+      <p class="greek">Euclid, Elements, Heiberg edition.</p>
+      <p>The prototype text was typed following the Heiberg tradition and must be replaced by the Perseus Digital Library canonical Greek TEI (urn:cts:greekLit:tlg1799.tlg001, CC BY-SA 4.0) before release. Token annotations by the Stoicheia Reader project.</p>
+      <p>Diagrams: original vector reconstructions by the Stoicheia Reader project.</p>
+      <h2 class="section">Font</h2>
+      <p>Gentium Plus © SIL International, licensed under the SIL Open Font License 1.1.</p>
+      <button class="textbtn" data-act="copy-attribution">COPY ATTRIBUTION</button>
+    </div>`, 'About');
+  }
+  function openJump() {
+    const el = overlay(`<div class="dialog-wrap" data-act="close-dialog"><form class="dialog" role="dialog" aria-label="Jump to citation">
+        <h2>Jump to citation</h2>
+        <div class="fields">
+          <select aria-label="Book" id="j-book">${C.books.map((b) => `<option value="${b.id}">Book ${b.id}</option>`).join('')}</select>
+          <select aria-label="Type" id="j-type"><option value="">Proposition</option><option value="Def">Definition</option><option value="Post">Postulate</option><option value="CN">Common notion</option></select>
+          <input aria-label="Number" id="j-num" inputmode="numeric" value="1">
+        </div>
+        <input class="typed" id="j-text" placeholder="or type I.1, I.Def.4, I.Post.3" aria-label="Citation" autocomplete="off">
+        <div class="err" id="j-err" role="alert"></div>
+        <div class="btns"><button type="button" class="textbtn" data-act="close-dialog">Cancel</button><button class="primary-btn" id="j-go">Go to I.1</button></div>
+      </form></div>`);
+    const f = el.querySelector('form');
+    const fields = () => `${f.querySelector('#j-book').value}.${f.querySelector('#j-type').value ? f.querySelector('#j-type').value + '.' : ''}${f.querySelector('#j-num').value.trim()}`;
+    const target = () => f.querySelector('#j-text').value.trim() || fields();
+    const sync = () => { f.querySelector('#j-go').textContent = 'Go to ' + target(); f.querySelector('#j-err').textContent = ''; };
+    f.addEventListener('input', sync);
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const hash = resolveCitation(target());
+      if (!hash) { f.querySelector('#j-err').textContent = `${target()} is not in this preview yet.`; return; }
+      el.remove();
+      go(hash);
+    });
+    f.querySelector('#j-text').focus();
+  }
+  function resolveCitation(text) {
+    const t = text.replace(/\s+/g, '').replace(/^1\./, 'I.').replace(/^i\./i, 'I.');
+    let m = t.match(/^I\.(\d+)$/);
+    if (m) return passageById[`I.${m[1]}`] ? `#/read/I.${m[1]}` : null;
+    m = t.match(/^I\.(def|post|cn)\.?(\d+)$/i);
+    if (m) {
+      const kind = { def: 'Def', post: 'Post', cn: 'CN' }[m[1].toLowerCase()];
+      const p = passageById[`I.${kind}`];
+      const n = Number(m[2]);
+      return p && n >= 1 && n <= p.paragraphs.length ? `#/read/I.${kind}?p=${n}` : null;
+    }
+    return null;
+  }
+
+  // ---------- copy ----------
+  async function copy(text) {
+    try { await navigator.clipboard.writeText(text); } catch {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ } ta.remove();
+    }
+    toast('Copied');
+  }
+  function toast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1600);
+  }
+
+  // ---------- events ----------
+  function back() {
+    const r = currentRoute;
+    // Back always goes up the hierarchy, even when the page was opened directly.
+    const up = r.name === 'figure' ? `#/read/${r.passage}` : r.name === 'read' ? `#/book/${passageById[r.passage].book}` : '#/';
+    const st = history.state || {};
+    if (st.sheet) closeSheet(true);
+    if (st.prev === up) history.go(st.sheet ? -2 : -1);
+    else go(up, { replace: !!st.sheet });
+  }
+  document.addEventListener('click', (e) => {
+    const goEl = e.target.closest('[data-go]');
+    if (goEl) { go(goEl.dataset.go); return; }
+    const w = e.target.closest('.w');
+    if (w) { selectToken(w.dataset.t); return; }
+    const setBtn = e.target.closest('[data-set]');
+    if (setBtn) { saveSettings({ [setBtn.dataset.set]: setBtn.dataset.val }); refreshSettings(); return; }
+    const tog = e.target.closest('[data-toggle]');
+    if (tog) { saveSettings({ [tog.dataset.toggle]: !settings[tog.dataset.toggle] }); refreshSettings(); return; }
+    const act = e.target.closest('[data-act]');
+    const a = act && act.dataset.act;
+    const ov = e.target.closest('.overlay');
+    switch (a) {
+      case 'back': back(); return;
+      case 'continue': if (position) go(`#/read/${position.passage}`); return;
+      case 'hint-ok': store.set('hintSeen', true); act.closest('.hint').remove(); return;
+      case 'books-menu': openMenu([['Settings', 'settings'], ['Attribution &amp; About', 'about']]); return;
+      case 'reader-menu': openMenu([['Jump to citation', 'jump'], ['Copy citation', 'copy-cite'], ['Copy passage', 'copy-passage'], ['Settings', 'settings'], ['About', 'about']]); return;
+      case 'settings': closeOverlay(ov); openSettings(); return;
+      case 'about': closeOverlay(ov); openAbout(); return;
+      case 'jump': closeOverlay(ov); openJump(); return;
+      case 'copy-cite': closeOverlay(ov); copy(`Euclid, Elements ${currentRoute.passage}`); return;
+      case 'copy-passage': {
+        closeOverlay(ov);
+        const p = passageById[currentRoute.passage];
+        copy(p.paragraphs.map((x) => (x.cite ? x.cite + ' ' : '') + x.text).join('\n\n') + `\n\n(Euclid, Elements ${p.id})`);
+        return;
+      }
+      case 'copy-attribution': copy('Greek text: Euclid, Elements, Heiberg edition, digital transcription derived from Perseus Digital Library canonical Greek resources, used under CC BY-SA 4.0. Modifications and token annotations by the Stoicheia Reader project.'); return;
+      case 'close-overlay': closeOverlay(ov); settingsEl = null; return;
+      case 'close-dialog': if (e.target === act || act.tagName === 'BUTTON') closeOverlay(ov); return;
+      case 'bookmark': {
+        const id = currentRoute.passage;
+        bookmarks = bookmarks.includes(id) ? bookmarks.filter((x) => x !== id) : [...bookmarks, id];
+        store.set('bookmarks', bookmarks);
+        const on = bookmarks.includes(id);
+        act.classList.toggle('on', on); act.setAttribute('aria-pressed', on); act.setAttribute('aria-label', on ? 'Remove bookmark' : 'Bookmark');
+        toast(on ? `Bookmarked ${id}` : 'Bookmark removed');
+        return;
+      }
+      case 'figure': savePosition(); go(`#/figure/${currentRoute.passage}`); return;
+      case 'fig-reset': zoomReset && zoomReset(); return;
+      case 'expand': expanded = true; renderMorph(true); return;
+      case 'toggle-gloss': saveSettings({ gloss: !settings.gloss }); return;
+      case 'copy-token': {
+        const { para, sp } = tokenIndex[selected];
+        const an = C.analyses[sp.a];
+        copy(`${para.text.slice(sp.s, sp.e)} - ${an.lemma} - ${an.flat}`);
+        return;
+      }
+      default:
+    }
+    // Tapping empty paper closes the sheet.
+    if (selected && !e.target.closest('#morph-sheet, .side, .bar, .overlay')) closeSheet();
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') { e.preventDefault(); if (!$('.dialog')) openJump(); return; }
+    if (e.key === 'Escape') {
+      const ov = document.querySelector('.overlay');
+      if (ov) { ov.remove(); settingsEl = null; return; }
+      if (selected) { closeSheet(); return; }
+      if (currentRoute.name === 'figure') { back(); return; }
+    }
+    if (currentRoute.name === 'read' && !document.querySelector('.overlay') && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
+      const i = order.indexOf(currentRoute.passage);
+      if (e.key === 'ArrowLeft' && order[i - 1]) go(`#/read/${order[i - 1]}`);
+      if (e.key === 'ArrowRight' && order[i + 1]) go(`#/read/${order[i + 1]}`);
+    }
+  });
+  matchMedia('(min-width: 960px)').addEventListener('change', () => {
+    if (!selected) return;
+    const keep = selected;
+    const sheet = $('#morph-sheet'); if (sheet) sheet.remove();
+    const side = $('#side-morph'); if (side) side.innerHTML = '';
+    selected = keep;
+    renderMorph(false);
+  });
+
+  // ---------- launch ----------
+  applySettings();
+  if (!location.hash || location.hash === '#' || location.hash === '#/') {
+    if (position && passageById[position.passage]) {
+      // Returning reader: open at the saved place, with Back leading to Book Contents.
+      const up = `#/book/${passageById[position.passage].book}`;
+      history.replaceState({}, '', '#/');
+      history.pushState({ prev: '#/' }, '', up);
+      history.pushState({ prev: up }, '', `#/read/${position.passage}`);
+      lastDepth = 1;
+    } else history.replaceState({}, '', '#/');
+  }
+  route(true);
+  if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.STOICHEIA_NO_SW) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
