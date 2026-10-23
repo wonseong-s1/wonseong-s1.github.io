@@ -24,10 +24,11 @@ It is built as an installable web app (PWA). It runs in any browser and installs
 | English translation (Heath) under each definition and enunciation, and after each proof; switch in Settings | Done |
 | Original data-driven vector diagrams for I.1–I.3, pinch/wheel zoom, double-tap 2×, Reset | Done |
 | Exact position restore (paragraph + character offset), Continue Reading card, last-read bar | Done |
-| Settings sheet: text size 18–30, line spacing, theme, keep screen awake, gloss (off by default), principal parts, high-contrast highlight | Done |
+| Interlinear view (default): each Greek word with a short English gloss and a grammar code (N-GSF, V-AAI-3S, …) under it; Reading view as plain text | Done |
+| Settings sheet: view, Greek font (Noto Sans or Gentium), text size 18–30, line spacing, theme (light, paper, dark), keep screen awake, gloss, principal parts, high-contrast highlight | Done |
 | Bookmarks, copy citation / passage / word analysis, citation jump (I.1, I.Def.4, I.Post.3; Ctrl+L) | Done |
 | Two-pane layout on wide screens (figure + analysis beside the text) | Done |
-| Bundled Gentium Plus font (OFL), offline service worker | Done |
+| Bundled Noto Sans and Gentium Plus fonts (both OFL), offline service worker | Done |
 
 ## Not yet done
 
@@ -52,7 +53,7 @@ app/                           the PWA: index.html, app.js, styles.css, sw.js, m
 ### Correcting a word
 
 Open `content/elements/<book>.json`, find the word in its passage, and change its line, e.g.
-`["δύο", "γε", "M"]` → `["δύο", "δύο", "M nom f p"]`. The code is the part of speech followed by features, as listed at the top of `content/lexicon.mjs` (for example `V ptc aor pas gen f s`, `N acc f s`, `P +gen`). To give a lemma a better gloss or principal parts, add it to `LEMMAS` in `content/lexicon.mjs`.
+`["δύο", "γε", "M"]` → `["δύο", "δύο", "M nom f p"]`. The code is the part of speech followed by features, as listed at the top of `content/lexicon.mjs` (for example `V ptc aor pas gen f s`, `N acc f s`, `P +gen`). To give a lemma a better gloss, add it to `GLOSSES` in `content/lexicon.mjs` (or to `LEMMAS`, with principal parts).
 
 Then run `node tools/build.mjs && node tools/bundle.mjs`. The build refuses to write output if a word list doesn't match its text, a code is unknown, or text isn't NFC.
 

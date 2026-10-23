@@ -76,7 +76,7 @@
     get(key, fallback) { try { const v = localStorage.getItem('stoicheia.' + key); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } },
     set(key, value) { try { localStorage.setItem('stoicheia.' + key, JSON.stringify(value)); } catch { /* storage unavailable */ } },
   };
-  const DEFAULTS = { size: 22, spacing: 'normal', theme: 'system', gloss: false, principalParts: true, contrast: 'normal', awake: false, english: true };
+  const DEFAULTS = { size: 22, spacing: 'relaxed', theme: 'system', font: 'sans', layout: 'interlinear', gloss: false, principalParts: true, contrast: 'normal', awake: false, english: true };
   let settings = { ...DEFAULTS, ...store.get('settings', {}) };
   let bookmarks = store.get('bookmarks', []);
   let position = store.get('position', null); // { passage, para, offset, pct }
@@ -99,11 +99,13 @@
   function applySettings() {
     const root = document.documentElement;
     const dark = settings.theme === 'dark' || (settings.theme === 'system' && (hostTheme ? hostTheme === 'dark' : darkQuery.matches));
-    root.dataset.theme = dark ? 'dark' : 'light';
+    const theme = dark ? 'dark' : settings.theme === 'paper' ? 'paper' : 'light';
+    root.dataset.theme = theme;
+    root.dataset.font = settings.font;
     root.dataset.contrast = settings.contrast;
     root.style.setProperty('--text-size', settings.size + 'px');
     root.style.setProperty('--line', { compact: 1.4, normal: 1.55, relaxed: 1.75 }[settings.spacing]);
-    $('meta[name=theme-color]').content = dark ? '#1D1C19' : '#F7F4EC';
+    $('meta[name=theme-color]').content = { dark: '#121212', paper: '#F7F4EC', light: '#FFFFFF' }[theme];
     keepAwake(settings.awake);
   }
   darkQuery.addEventListener('change', applySettings);
@@ -120,7 +122,7 @@
     settings = { ...settings, ...patch };
     store.set('settings', settings);
     applySettings();
-    if (currentRoute.name === 'read' && 'english' in patch) { rerenderReader(); if (anchor) restoreAnchor(anchor); return; }
+    if (currentRoute.name === 'read' && ('english' in patch || 'layout' in patch)) { rerenderReader(); if (anchor) restoreAnchor(anchor); return; }
     if (anchor) restoreAnchor(anchor); // a font change must not lose the reading place
     if (selected) renderMorph(false);
   }
@@ -235,6 +237,57 @@
     const para = p.paragraphs[paraIdx || 0] || p.paragraphs[0];
     return para.text.split(/\s+/).slice(0, 5).join(' ') + '…';
   }
+  // Short grammar code under each word, in the style of interlinear Bibles: N-GSF, V-AAI-3S, V-PMP-GPF.
+  const ABBR = {
+    nom: 'N', gen: 'G', dat: 'D', acc: 'A', voc: 'V', s: 'S', p: 'P', du: 'D', m: 'M', f: 'F', n: 'N', c: 'C',
+    pres: 'P', impf: 'I', fut: 'F', aor: 'A', perf: 'R', plpf: 'L', futperf: 'T', act: 'A', mid: 'M', pas: 'P', mp: 'E',
+    ind: 'I', sub: 'S', opt: 'O', imp: 'M', inf: 'N', ptc: 'P',
+  };
+  const POS_ABBR = { N: 'N', A: 'ADJ', T: 'ART', R: 'PRON', M: 'NUM', P: 'PREP', C: 'CONJ', D: 'ADV', X: 'PRT', I: 'INJ', U: '?' };
+  const abbrCache = {};
+  function parseAbbr(code) {
+    if (abbrCache[code]) return abbrCache[code];
+    const [pos, ...rest] = code.split(' ');
+    const f = {};
+    for (const c of rest) { const g = Object.keys(GROUPS).find((k) => GROUPS[k].includes(c)); if (g) f[g] = c; }
+    const a = (...keys) => keys.map((k) => ABBR[f[k]] || '').join('');
+    const cng = a('case', 'number', 'gender');
+    let out;
+    if (pos === 'V') {
+      const tvm = a('tense', 'voice', 'mood');
+      out = 'V-' + tvm + (f.mood === 'ptc' ? (cng ? '-' + cng : '') : f.mood === 'inf' ? '' : (f.person || f.number ? `-${f.person || ''}${ABBR[f.number] || ''}` : ''));
+    } else out = (POS_ABBR[pos] || pos) + (cng ? '-' + cng : '') + (f.degree ? '-' + f.degree[0].toUpperCase() : '');
+    return (abbrCache[code] = out);
+  }
+  function shortGloss(a) {
+    const g = (C.lemmas[a.lemma] || {}).gloss;
+    return g ? g.split(/[,;]/)[0].trim() : a.lemma;
+  }
+  function interlinearHTML(para) {
+    // Punctuation sticks to the word before it, an opening bracket to the word after it.
+    const cells = [];
+    let lead = '';
+    let i = 0;
+    const between = (t) => {
+      const m = t.match(/^(\S*)\s*([\s\S]*?)$/);
+      if (cells.length) cells.at(-1).trail += m[1]; else lead += m[1];
+      const rest = m[2].trim();
+      if (rest) lead += rest;
+    };
+    for (const sp of para.spans) {
+      between(para.text.slice(i, sp.s));
+      cells.push({ sp, lead, trail: '' });
+      lead = '';
+      i = sp.e;
+    }
+    between(para.text.slice(i));
+    return cells.map(({ sp, lead: l, trail }) => {
+      const g = esc(l) + esc(para.text.slice(sp.s, sp.e)) + esc(trail);
+      if (!sp.id) return `<span class="iw lbl"><span class="g">${g}</span></span>`;
+      const a = analysis(sp.a);
+      return `<span class="iw w" data-t="${sp.id}"><span class="g">${g}</span><span class="gl">${esc(shortGloss(a))}</span><span class="ps">${parseAbbr(C.analyses[sp.a][1])}</span></span>`;
+    }).join('');
+  }
   function paragraphHTML(para) {
     let out = '';
     let i = 0;
@@ -263,11 +316,16 @@
     const marked = bookmarks.includes(p.id);
     const fig = p.figure ? `<button class="figure-inline in-text" data-act="figure" aria-label="Open diagram for ${p.id}">${figureSVG(C.figures[p.figure])}</button>` : '';
     const en = settings.english;
+    const il = settings.layout === 'interlinear';
     const enHTML = (t) => (en && t ? `<p class="en" lang="en">${esc(t)}</p>` : '');
     let body = '';
     for (const [i, para] of p.paragraphs.entries()) {
-      if (para.role === 'item') body += `<div class="item" id="${para.id}" data-i="${i}"><span class="icite">${para.cite}</span><span class="ptext">${paragraphHTML(para)}</span>${enHTML(para.en)}</div>`;
-      else body += `<p id="${para.id}" data-i="${i}" class="${para.role === 'enunciation' ? 'enun' : ''}">${paragraphHTML(para)}</p>`;
+      const enun = para.role === 'enunciation' ? 'enun' : '';
+      if (il) {
+        if (para.role === 'item') body += `<div class="item" id="${para.id}" data-i="${i}"><span class="icite">${para.cite}</span><div class="ptext ilin">${interlinearHTML(para)}</div>${enHTML(para.en)}</div>`;
+        else body += `<div id="${para.id}" data-i="${i}" class="ilin ${enun}">${interlinearHTML(para)}</div>`;
+      } else if (para.role === 'item') body += `<div class="item" id="${para.id}" data-i="${i}"><span class="icite">${para.cite}</span><span class="ptext">${paragraphHTML(para)}</span>${enHTML(para.en)}</div>`;
+      else body += `<p id="${para.id}" data-i="${i}" class="${enun}">${paragraphHTML(para)}</p>`;
       if (para.role === 'enunciation') body += enHTML(para.en) + fig;
     }
     // Greek and English paragraphs don't line up one to one, so the English proof follows the Greek.
@@ -324,15 +382,18 @@
       // First word whose line is still visible below the app bar (no hit-testing, so overlays don't interfere).
       const words = [...para.querySelectorAll('.w, .lbl')];
       const first = words.find((w) => w.getBoundingClientRect().bottom > y);
-      if (first) offset = textOffset(para, first.firstChild, 0);
+      if (first) offset = textOffset(para, (first.querySelector('.g') || first).firstChild, 0);
     }
     const max = document.documentElement.scrollHeight - innerHeight;
     return { passage: currentRoute.passage, para: Number(para.dataset.i), offset, pct: max > 0 ? Math.round((scrollY / max) * 100) : 100 };
   }
+  // Offsets count Greek text only, so interlinear glosses don't shift the saved place.
+  const greekWalker = (root) => document.createTreeWalker(root, NodeFilter.SHOW_TEXT,
+    { acceptNode: (n) => (n.parentElement.closest('.gl, .ps') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
   function paraTextRoot(para) { return para.querySelector('.ptext') || para; }
   function textOffset(para, node, off) {
     const root = paraTextRoot(para);
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const walker = greekWalker(root);
     let n = 0;
     while (walker.nextNode()) {
       if (walker.currentNode === node) return n + off;
@@ -346,7 +407,7 @@
     const doIt = () => {
       let top = para.getBoundingClientRect().top;
       if (a.offset > 0) {
-        const walker = document.createTreeWalker(paraTextRoot(para), NodeFilter.SHOW_TEXT);
+        const walker = greekWalker(paraTextRoot(para));
         let n = 0;
         while (walker.nextNode()) {
           const len = walker.currentNode.length;
@@ -617,13 +678,15 @@
       <h2>Reading</h2>
       <div class="setting"><label for="size">Text size <span class="meta">${settings.size}</span></label><input id="size" type="range" min="18" max="30" step="1" value="${settings.size}"></div>
       <div class="setting"><span class="name">Line spacing</span>${seg('spacing', [['compact', 'Compact'], ['normal', 'Normal'], ['relaxed', 'Relaxed']])}</div>
-      <div class="setting"><span class="name">Theme</span>${seg('theme', [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']])}</div>
+      <div class="setting"><span class="name">View</span>${seg('layout', [['interlinear', 'Interlinear'], ['reading', 'Reading']])}</div>
+      <div class="setting"><span class="name">Greek font</span>${seg('font', [['sans', 'Sans'], ['serif', 'Serif']])}</div>
+      <div class="setting"><span class="name">Theme</span>${seg('theme', [['system', 'System'], ['light', 'Light'], ['paper', 'Paper'], ['dark', 'Dark']])}</div>
       ${sw('english', 'Show English translation')}
       ${sw('awake', 'Keep screen awake')}
       <h2>Morphology</h2>
       ${sw('gloss', 'Show brief gloss')}
       ${sw('principalParts', 'Show principal parts')}
-      <div class="setting"><span class="name">Selection highlight</span>${seg('contrast', [['normal', 'Paper'], ['high', 'High contrast']])}</div>
+      <div class="setting"><span class="name">Selection highlight</span>${seg('contrast', [['normal', 'Soft'], ['high', 'High contrast']])}</div>
     </div>`;
   }
   let settingsEl = null;
@@ -649,7 +712,7 @@
       <p>Greek text (Heiberg) and English translation (Heath) from the Perseus Digital Library, CC BY-SA 4.0. Word analyses are a first pass, being corrected by hand.</p>
       <p>Diagrams: original vector reconstructions by the Stoicheia Reader project.</p>
       <h2 class="section">Font</h2>
-      <p>Gentium Plus © SIL International, licensed under the SIL Open Font License 1.1.</p>
+      <p>Noto Sans © Google and Gentium Plus © SIL International, both under the SIL Open Font License 1.1.</p>
       <button class="textbtn" data-act="copy-attribution">COPY ATTRIBUTION</button>
     </div>`, 'About');
   }
@@ -741,7 +804,7 @@
       case 'continue': if (position) go(`#/read/${position.passage}`); return;
       case 'hint-ok': store.set('hintSeen', true); act.closest('.hint').remove(); return;
       case 'books-menu': openMenu([['Settings', 'settings'], ['Attribution &amp; About', 'about']]); return;
-      case 'reader-menu': openMenu([['Jump to citation', 'jump'], ['Copy citation', 'copy-cite'], ['Copy passage', 'copy-passage'], ['Settings', 'settings'], ['About', 'about']]); return;
+      case 'reader-menu': openMenu([[settings.layout === 'interlinear' ? 'Reading view' : 'Interlinear view', 'toggle-layout'], ['Jump to citation', 'jump'], ['Copy citation', 'copy-cite'], ['Copy passage', 'copy-passage'], ['Settings', 'settings'], ['About', 'about']]); return;
       case 'settings': closeOverlay(ov); openSettings(); return;
       case 'about': closeOverlay(ov); openAbout(); return;
       case 'jump': closeOverlay(ov); openJump(); return;
@@ -769,6 +832,7 @@
       case 'fig-reset': zoomReset && zoomReset(); return;
       case 'expand': expanded = true; renderMorph(true); return;
       case 'toggle-gloss': saveSettings({ gloss: !settings.gloss }); return;
+      case 'toggle-layout': closeOverlay(ov); saveSettings({ layout: settings.layout === 'interlinear' ? 'reading' : 'interlinear' }); return;
       case 'copy-token': {
         const { para, sp } = tokenIndex[selected];
         const an = analysis(sp.a);
