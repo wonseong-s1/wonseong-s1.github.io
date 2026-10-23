@@ -99,7 +99,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .rowbtn .chev { color: var(--muted); font-size: 22px; }
 .rowbtn .figmark { width: 18px; height: 18px; color: var(--muted); }
 .rowbtn.last::before { content: ''; position: absolute; left: -12px; top: 12px; bottom: 12px; width: 3px; border-radius: 2px; background: var(--slate); }
-.planned { padding: 14px 0; color: var(--muted); font-size: 14px; border-top: 1px solid var(--hairline); }
 .contents-head { margin: 4px 0 8px; }
 .contents-head h1 { font-size: 26px; font-weight: 500; margin: 0; }
 .contents-head .greek { font-size: 19px; color: var(--muted); }
@@ -112,6 +111,12 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .text p { margin: 0 0 0.8em; }
 .text .enun { font-size: calc(var(--text-size) * 1.09); font-weight: 700; }
 .item { margin-bottom: 1em; }
+.text .en { font-family: var(--ui); font-size: calc(var(--text-size) * 0.72); line-height: 1.5; color: var(--muted); margin: 0.25em 0 0.9em; font-weight: 400; }
+.item .en { margin: 0.3em 0 0; }
+.en-block { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--hairline); font-family: var(--ui); font-size: calc(var(--text-size) * 0.72); line-height: 1.55; color: var(--muted); }
+.en-block h2 { margin: 0 0 10px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); font-weight: 600; }
+.en-block p { margin: 0 0 0.8em; }
+.loading { color: var(--muted); padding: 24px 0; }
 .item .icite { display: block; font-family: var(--ui); font-size: 12.5px; font-weight: 500; color: var(--slate); letter-spacing: 0.04em; margin-bottom: 2px; }
 .w { cursor: pointer; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 @media (hover: hover) { .w:hover { text-decoration: underline; text-decoration-color: var(--hairline); text-underline-offset: 4px; } }
@@ -124,7 +129,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .fig-label { fill: var(--ink); font-family: var(--greek); }
 .pnav { display: flex; justify-content: space-between; margin-top: 28px; padding-top: 8px; border-top: 1px solid var(--hairline); }
 .pnav button { padding: 12px 4px; color: var(--slate); font-weight: 500; font-size: 15px; }
-.pnav .later { color: var(--muted); font-size: 14px; padding: 12px 4px; }
 
 /* Bottom sheets */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 30; animation: fade 160ms ease both; }
@@ -151,7 +155,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .morph .more { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 .morph .more h3 { margin: 0 0 4px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); font-weight: 600; }
 .morph .more p { margin: 0 0 12px; font-family: var(--greek); font-size: 18px; }
-.morph .more .src { font-family: var(--ui); font-size: 13px; color: var(--muted); }
 .morph .actions { display: flex; gap: 4px; margin: 12px -14px 0; }
 .morph.crossfade { animation: fade 120ms ease both; }
 
