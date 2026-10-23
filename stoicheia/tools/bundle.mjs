@@ -5,6 +5,9 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 const read = (f) => readFileSync(new URL('../app/' + f, import.meta.url), 'utf8');
+// Every book inline, so the single file works without loading anything else.
+const inlineBooks = () => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII']
+  .map((b) => '\n  <script>' + read(`books/${b}.js`) + '</script>').join('');
 const css = read('styles.css').replace(/@font-face[^\n]*\n/g, '');
 const html = read('index.html')
   .replace(/\s*<link rel="manifest"[^>]*>/, '')
@@ -12,7 +15,8 @@ const html = read('index.html')
   .replace(/\s*<link rel="apple-touch-icon"[^>]*>/, '')
   .replace('<link rel="stylesheet" href="styles.css">',
     '<link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gentium+Plus:wght@400;700&display=swap">\n  <style>\n' + css + '</style>')
-  .replace('<script src="corpus.js"></script>', () => '<script>' + read('corpus.js') + 'window.STOICHEIA_NO_SW = true;</script>')
+  .replace('<script src="corpus.js"></script>', () => '<script>' + read('corpus.js') + 'window.STOICHEIA_NO_SW = true;</script>'
+    + inlineBooks())
   .replace('<script src="app.js"></script>', () => '<script>' + read('app.js') + '</script>');
 // Artifact pages get their own document skeleton and a dark-mode media block for the first frame.
 const dark = css.match(/:root\[data-theme="dark"\] \{([^}]*)\}/)[1];

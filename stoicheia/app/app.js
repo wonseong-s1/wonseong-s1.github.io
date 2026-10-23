@@ -8,15 +8,75 @@
   const app = $('#app');
   const passageById = Object.fromEntries(C.passages.map((p) => [p.id, p]));
   const order = C.passages.map((p) => p.id);
+
+  // ---------- text, loaded one book at a time ----------
+  // books/<id>.js holds each passage's paragraphs; spans are [start, end, analysis] for words, [start, end] for labels.
   const tokenIndex = {};
-  for (const p of C.passages) for (const para of p.paragraphs) for (const sp of para.spans) if (sp.id) tokenIndex[sp.id] = { p, para, sp };
+  const bookLoads = {};
+  function loadBook(bookId) {
+    if (!bookLoads[bookId]) {
+      bookLoads[bookId] = new Promise((resolve, reject) => {
+        if (window.STOICHEIA_TEXT && window.STOICHEIA_TEXT[bookId]) { resolve(); return; } // single-file build
+        const s = document.createElement('script');
+        s.src = `books/${bookId}.js`;
+        s.onload = () => resolve(); s.onerror = () => { delete bookLoads[bookId]; reject(new Error('load failed')); };
+        document.head.appendChild(s);
+      }).then(() => {
+        const text = window.STOICHEIA_TEXT[bookId];
+        for (const [id, t] of Object.entries(text)) {
+          const p = passageById[id];
+          if (!p) continue;
+          p.paragraphs = t.paragraphs;
+          p.english = t.english;
+          for (const para of t.paragraphs) {
+            let k = 0;
+            para.spans = para.spans.map(([s, e, a]) => (a === undefined ? { s, e } : { id: `${para.id}.t${k++}`, s, e, a }));
+            for (const sp of para.spans) if (sp.id) tokenIndex[sp.id] = { p, para, sp };
+          }
+        }
+      });
+    }
+    return bookLoads[bookId];
+  }
+  const loaded = (p) => !!(p && p.paragraphs);
+
+  // Feature codes -> the two lines the morphology sheet shows (tables come from content/lexicon.mjs).
+  const { POS, WORD, GROUPS } = C.labels;
+  const describeCache = {};
+  function describe(code) {
+    if (describeCache[code]) return describeCache[code];
+    const [pos, ...rest] = code.split(' ');
+    const f = { pos };
+    for (const c of rest) { const g = Object.keys(GROUPS).find((k) => GROUPS[k].includes(c)); if (g) f[g] = c; }
+    const w = (k) => (f[k] ? WORD[f[k]] : null);
+    const join = (...xs) => xs.filter(Boolean).join(' · ');
+    const nominal = join(w('case'), w('gender'), w('number'));
+    let line1, line2 = '', flat;
+    if (pos === 'V') {
+      line1 = join(w('mood'), w('tense'), w('voice'));
+      line2 = f.mood === 'ptc' ? nominal : f.mood === 'inf' ? '' : join(w('person'), w('number'));
+      flat = [w('tense'), w('voice'), w('mood')].filter(Boolean).join(' ') + (line2 ? ', ' + line2.replaceAll(' · ', ' ') : '');
+    } else if (pos === 'P') {
+      line1 = join('preposition', w('gov'));
+      line2 = f.elided ? 'elided before a vowel' : '';
+      flat = line1.replaceAll(' · ', ' ');
+    } else if (['C', 'D', 'X', 'I', 'U'].includes(pos)) {
+      line1 = POS[pos] || pos; flat = line1;
+    } else {
+      line1 = join(POS[pos] || pos, w('degree'));
+      line2 = nominal;
+      flat = line1.replaceAll(' · ', ' ') + (line2 ? ', ' + line2.replaceAll(' · ', ' ') : '');
+    }
+    return (describeCache[code] = { line1, line2, flat });
+  }
+  const analysis = (i) => { const [lemma, code] = C.analyses[i]; return { lemma, ...describe(code) }; };
 
   // ---------- storage (per-viewer only; the app works without it) ----------
   const store = {
     get(key, fallback) { try { const v = localStorage.getItem('stoicheia.' + key); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } },
     set(key, value) { try { localStorage.setItem('stoicheia.' + key, JSON.stringify(value)); } catch { /* storage unavailable */ } },
   };
-  const DEFAULTS = { size: 22, spacing: 'normal', theme: 'system', gloss: false, principalParts: true, contrast: 'normal', awake: false };
+  const DEFAULTS = { size: 22, spacing: 'normal', theme: 'system', gloss: false, principalParts: true, contrast: 'normal', awake: false, english: true };
   let settings = { ...DEFAULTS, ...store.get('settings', {}) };
   let bookmarks = store.get('bookmarks', []);
   let position = store.get('position', null); // { passage, para, offset, pct }
@@ -60,6 +120,7 @@
     settings = { ...settings, ...patch };
     store.set('settings', settings);
     applySettings();
+    if (currentRoute.name === 'read' && 'english' in patch) { rerenderReader(); if (anchor) restoreAnchor(anchor); return; }
     if (anchor) restoreAnchor(anchor); // a font change must not lose the reading place
     if (selected) renderMorph(false);
   }
@@ -119,7 +180,7 @@
     app.innerHTML = `
       <header class="bar"><div class="title left">Στοιχεῖα</div>${icon('more', 'More', 'data-act="books-menu"')}</header>
       <main class="screen ${backward ? 'back' : ''}">
-        <div class="lib-head"><div class="greek">${esc(C.work.title)}</div><div class="meta">Greek text · offline</div></div>
+        <div class="lib-head"><div class="greek">${esc(C.work.title)}</div><div class="meta">Greek text with English · offline</div></div>
         ${cont ? `<button class="card" data-act="continue">
             <div class="row1"><span class="label">CONTINUE READING</span><span class="meta">${position.pct || 0}%</span></div>
             <div class="cite">${esc(citeOf(cont, position.para))}</div>
@@ -128,7 +189,6 @@
         <div class="section">Books</div>
         <ul class="list">${C.books.map((b) => `<li><button class="rowbtn" data-go="#/book/${b.id}">
             <span class="main"><span class="primary">${esc(b.title)}</span><div class="secondary">${esc(b.summary)}</div></span><span class="chev">›</span></button></li>`).join('')}</ul>
-        <div class="planned">More books planned</div>
         ${marks.length ? `<div class="section">Bookmarks</div><ul class="list">${marks.map((id) => `<li><button class="rowbtn" data-go="#/read/${id}">
             <span class="main"><span class="primary">${esc(passageLabel(passageById[id]))}</span><div class="secondary greek">${esc(passageById[id].firstWords)}</div></span><span class="chev">›</span></button></li>`).join('')}</ul>` : ''}
       </main>`;
@@ -144,17 +204,19 @@
     const row = (p, primary, secondary, greek) => `<li><button class="rowbtn ${p.id === last ? 'last' : ''}" data-go="#/read/${p.id}">
         <span class="main"><span class="primary">${esc(primary)}</span><div class="secondary ${greek ? 'greek' : ''}">${esc(secondary)}</div></span>
         ${p.figure ? `<svg class="figmark" viewBox="0 0 24 24" aria-label="Has diagram"><g fill="none" stroke="currentColor" stroke-width="1.6">${ICON.figure}</g></svg>` : '<span class="chev">›</span>'}</button></li>`;
-    const found = ps.filter((p) => p.kind !== 'proposition');
-    const props = ps.filter((p) => p.kind === 'proposition');
+    // Sections follow the book's own order (Book X alternates definitions and propositions).
+    const groups = [];
+    for (const p of ps) {
+      const name = p.kind === 'proposition' ? 'Propositions' : 'Foundations';
+      if (!groups.length || groups.at(-1).name !== name) groups.push({ name, items: [] });
+      groups.at(-1).items.push(p);
+    }
     app.innerHTML = `
       <header class="bar">${icon('back', 'Back', 'data-act="back"')}<div class="title">${esc(book.title)}</div>${icon('jump', 'Jump to citation', 'data-act="jump"')}</header>
       <main class="screen ${backward ? 'back' : ''}">
         <div class="contents-head"><h1>${esc(book.title)}</h1><div class="greek">${esc(book.greekTitle)}</div></div>
-        <div class="section">Foundations</div>
-        <ul class="list">${found.map((p) => row(p, p.title, p.range + (p.planned ? ` · ${p.planned}` : ''))).join('')}</ul>
-        <div class="section">Propositions</div>
-        <ul class="list">${props.map((p) => row(p, `${p.id} · ${p.type}`, p.firstWords, true)).join('')}</ul>
-        <div class="planned">${esc(C.planned.propositions)}</div>
+        ${groups.map((g) => `<div class="section">${g.name}</div>
+        <ul class="list">${g.items.map((p) => (p.kind === 'proposition' ? row(p, `${p.id} · ${p.type}`, p.firstWords, true) : row(p, p.title, p.range))).join('')}</ul>`).join('')}
       </main>`;
     scrollTo(0, listScroll['#/book/' + book.id] || 0);
     document.title = book.title + ' · Στοιχεῖα';
@@ -164,10 +226,12 @@
   const passageLabel = (p) => (p.kind === 'proposition' ? `${p.id} · ${p.type}` : `${p.title} · ${p.id}`);
   function citeOf(p, paraIdx) {
     if (p.kind === 'proposition') return p.id;
+    if (!loaded(p)) return paraIdx ? `${p.id}.${paraIdx + 1}` : p.id;
     const para = p.paragraphs[paraIdx || 0];
     return para && para.cite ? para.cite : p.id;
   }
   function firstWordsAt(p, paraIdx) {
+    if (!loaded(p)) return p.firstWords;
     const para = p.paragraphs[paraIdx || 0] || p.paragraphs[0];
     return para.text.split(/\s+/).slice(0, 5).join(' ') + '…';
   }
@@ -184,17 +248,31 @@
   }
   function renderReader(r, backward, isPop, prev) {
     const p = passageById[r.passage];
+    if (!loaded(p)) {
+      app.innerHTML = `<header class="bar">${icon('back', 'Back to contents', 'data-act="back"')}<div class="title">${esc(p.id)}</div></header>
+        <main class="screen reader"><p class="loading">Loading ${esc(p.id)}…</p></main>`;
+      loadBook(p.book).then(() => { if (currentRoute === r) renderReader(r, backward, isPop, prev); },
+        () => { const m = $('.loading'); if (m) m.textContent = 'Could not load this book. Check your connection and try again.'; });
+      return;
+    }
+    const nb = passageById[order[order.indexOf(p.id) + 1]];
+    if (nb && nb.book !== p.book) loadBook(nb.book).catch(() => {}); // so the next book opens instantly
     const idx = order.indexOf(p.id);
     const prevP = passageById[order[idx - 1]];
     const nextP = passageById[order[idx + 1]];
     const marked = bookmarks.includes(p.id);
     const fig = p.figure ? `<button class="figure-inline in-text" data-act="figure" aria-label="Open diagram for ${p.id}">${figureSVG(C.figures[p.figure])}</button>` : '';
+    const en = settings.english;
+    const enHTML = (t) => (en && t ? `<p class="en" lang="en">${esc(t)}</p>` : '');
     let body = '';
     for (const [i, para] of p.paragraphs.entries()) {
-      if (para.role === 'item') body += `<div class="item" id="${para.id}" data-i="${i}"><span class="icite">${para.cite}</span><span class="ptext">${paragraphHTML(para)}</span></div>`;
+      if (para.role === 'item') body += `<div class="item" id="${para.id}" data-i="${i}"><span class="icite">${para.cite}</span><span class="ptext">${paragraphHTML(para)}</span>${enHTML(para.en)}</div>`;
       else body += `<p id="${para.id}" data-i="${i}" class="${para.role === 'enunciation' ? 'enun' : ''}">${paragraphHTML(para)}</p>`;
-      if (para.role === 'enunciation') body += fig;
+      if (para.role === 'enunciation') body += enHTML(para.en) + fig;
     }
+    // Greek and English paragraphs don't line up one to one, so the English proof follows the Greek.
+    const enBlock = en && p.english && p.english.length
+      ? `<section class="en-block" lang="en"><h2>English translation</h2>${p.english.map((t) => `<p>${esc(t)}</p>`).join('')}</section>` : '';
     const label = `${p.greekTitle.toUpperCase()} · ${p.id}`;
     app.innerHTML = `
       <header class="bar" id="rbar">${icon('back', 'Back to contents', 'data-act="back"')}<div class="title">${esc(p.id)}</div>
@@ -204,9 +282,10 @@
         <article>
           <div class="plabel">${esc(label)}</div>
           <div class="text" lang="grc" id="text">${body}</div>
+          ${enBlock}
           <nav class="pnav" aria-label="Passages">
-            ${prevP ? `<button data-go="#/read/${prevP.id}">‹ ${esc(prevP.kind === 'proposition' ? prevP.id : prevP.paragraphs.at(-1).cite)}</button>` : '<span></span>'}
-            ${nextP ? `<button data-go="#/read/${nextP.id}">${esc(nextP.id)} ›</button>` : `<span class="later">${esc(C.planned.next)}</span>`}
+            ${prevP ? `<button data-go="#/read/${prevP.id}">‹ ${esc(prevP.kind === 'proposition' || !prevP.count ? prevP.id : `${prevP.id}.${prevP.count}`)}</button>` : '<span></span>'}
+            ${nextP ? `<button data-go="#/read/${nextP.id}">${esc(nextP.id)} ›</button>` : '<span></span>'}
           </nav>
         </article>
         <aside class="side">${p.figure ? `<button class="figure-inline" data-act="figure" aria-label="Open diagram">${figureSVG(C.figures[p.figure])}</button>` : ''}<div id="side-morph"></div></aside>
@@ -222,6 +301,13 @@
       restoreAnchor(saved);
     } else scrollTo(0, 0);
     savePosition();
+  }
+
+  function rerenderReader() {
+    const keep = selected;
+    closeAllOverlays();
+    renderReader(currentRoute, false, true, currentRoute);
+    if (keep && document.querySelector(`.w[data-t="${CSS.escape(keep)}"]`)) selectToken(keep);
   }
 
   // Reading position = paragraph + character offset of the first visible character.
@@ -317,7 +403,7 @@
   }
   function morphHTML() {
     const { p, para, sp } = tokenIndex[selected];
-    const a = C.analyses[sp.a];
+    const a = analysis(sp.a);
     const lemma = C.lemmas[a.lemma] || {};
     const surface = para.text.slice(sp.s, sp.e);
     const showMore = expanded || isWide();
@@ -327,8 +413,7 @@
       <div class="parse"><div>${esc(a.line1)}</div>${a.line2 ? `<div>${esc(a.line2)}</div>` : ''}</div>
       ${settings.gloss && lemma.gloss ? `<div class="gloss"><b>Gloss</b>${esc(lemma.gloss)}</div>` : ''}
       ${showMore ? `<div class="more">
-          ${settings.principalParts && lemma.pp ? `<h3>Principal parts</h3><p lang="grc">${esc(lemma.pp)}</p>` : ''}
-          <h3>In this passage</h3><p class="src">Analysis chosen for this occurrence. Source: prototype hand annotation, not yet scholar-reviewed.</p></div>` : ''}
+          ${settings.principalParts && lemma.pp ? `<h3>Principal parts</h3><p lang="grc">${esc(lemma.pp)}</p>` : ''}</div>` : ''}
       <div class="actions">
         ${!isWide() && !expanded && lemma.pp && settings.principalParts ? '<button class="textbtn" data-act="expand">PRINCIPAL PARTS</button>' : ''}
         <button class="textbtn" data-act="copy-token">COPY</button>
@@ -533,6 +618,7 @@
       <div class="setting"><label for="size">Text size <span class="meta">${settings.size}</span></label><input id="size" type="range" min="18" max="30" step="1" value="${settings.size}"></div>
       <div class="setting"><span class="name">Line spacing</span>${seg('spacing', [['compact', 'Compact'], ['normal', 'Normal'], ['relaxed', 'Relaxed']])}</div>
       <div class="setting"><span class="name">Theme</span>${seg('theme', [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']])}</div>
+      ${sw('english', 'Show English translation')}
       ${sw('awake', 'Keep screen awake')}
       <h2>Morphology</h2>
       ${sw('gloss', 'Show brief gloss')}
@@ -558,10 +644,9 @@
   function openAbout() {
     openSheet(`<div class="about">
       <h2 class="section" style="margin-top:4px">About</h2>
-      <p>Stoicheia Reader: read Euclid in Greek, tap a form to see its lemma and grammatical analysis. Prototype build: Book I definitions 1–5, postulates, common notions and Proposition 1.</p>
-      <h2 class="section">Text attribution</h2>
-      <p class="greek">Euclid, Elements, Heiberg edition.</p>
-      <p>The prototype text was typed following the Heiberg tradition and must be replaced by the Perseus Digital Library canonical Greek TEI (urn:cts:greekLit:tlg1799.tlg001, CC BY-SA 4.0) before release. Token annotations by the Stoicheia Reader project.</p>
+      <p>Stoicheia Reader: read all thirteen books of Euclid's Elements in Greek with an English translation, and tap a form to see its lemma and grammatical analysis.</p>
+      <h2 class="section">Credits</h2>
+      <p>Greek text (Heiberg) and English translation (Heath) from the Perseus Digital Library, CC BY-SA 4.0. Word analyses are a first pass, being corrected by hand.</p>
       <p>Diagrams: original vector reconstructions by the Stoicheia Reader project.</p>
       <h2 class="section">Font</h2>
       <p>Gentium Plus © SIL International, licensed under the SIL Open Font License 1.1.</p>
@@ -572,38 +657,44 @@
     const el = overlay(`<div class="dialog-wrap" data-act="close-dialog"><form class="dialog" role="dialog" aria-label="Jump to citation">
         <h2>Jump to citation</h2>
         <div class="fields">
-          <select aria-label="Book" id="j-book">${C.books.map((b) => `<option value="${b.id}">Book ${b.id}</option>`).join('')}</select>
+          <select aria-label="Book" id="j-book">${C.books.map((b) => `<option value="${b.id}" ${currentRoute.book === b.id || (currentRoute.passage && passageById[currentRoute.passage].book === b.id) ? 'selected' : ''}>Book ${b.id}</option>`).join('')}</select>
           <select aria-label="Type" id="j-type"><option value="">Proposition</option><option value="Def">Definition</option><option value="Post">Postulate</option><option value="CN">Common notion</option></select>
           <input aria-label="Number" id="j-num" inputmode="numeric" value="1">
         </div>
-        <input class="typed" id="j-text" placeholder="or type I.1, I.Def.4, I.Post.3" aria-label="Citation" autocomplete="off">
+        <input class="typed" id="j-text" placeholder="or type I.47, III.Def.2, X.Def2.3" aria-label="Citation" autocomplete="off">
         <div class="err" id="j-err" role="alert"></div>
-        <div class="btns"><button type="button" class="textbtn" data-act="close-dialog">Cancel</button><button class="primary-btn" id="j-go">Go to I.1</button></div>
+        <div class="btns"><button type="button" class="textbtn" data-act="close-dialog">Cancel</button><button class="primary-btn" id="j-go">Go</button></div>
       </form></div>`);
     const f = el.querySelector('form');
     const fields = () => `${f.querySelector('#j-book').value}.${f.querySelector('#j-type').value ? f.querySelector('#j-type').value + '.' : ''}${f.querySelector('#j-num').value.trim()}`;
     const target = () => f.querySelector('#j-text').value.trim() || fields();
     const sync = () => { f.querySelector('#j-go').textContent = 'Go to ' + target(); f.querySelector('#j-err').textContent = ''; };
     f.addEventListener('input', sync);
+    f.addEventListener('change', sync);
+    sync();
     f.addEventListener('submit', (e) => {
       e.preventDefault();
       const hash = resolveCitation(target());
-      if (!hash) { f.querySelector('#j-err').textContent = `${target()} is not in this preview yet.`; return; }
+      if (!hash) { f.querySelector('#j-err').textContent = `${target()} is not in the Elements.`; return; }
       el.remove();
       go(hash);
     });
     f.querySelector('#j-text').focus();
   }
+  // I.47, 1.47, III.Def.2, X.Def2.3 (Book X has three groups of definitions), I.Post.3, I.CN.1
   function resolveCitation(text) {
-    const t = text.replace(/\s+/g, '').replace(/^1\./, 'I.').replace(/^i\./i, 'I.');
-    let m = t.match(/^I\.(\d+)$/);
-    if (m) return passageById[`I.${m[1]}`] ? `#/read/I.${m[1]}` : null;
-    m = t.match(/^I\.(def|post|cn)\.?(\d+)$/i);
+    const m0 = text.replace(/\s+/g, '').match(/^([IVXivx]+|\d+)\.(.+)$/);
+    if (!m0) return null;
+    const book = /^\d+$/.test(m0[1]) ? (C.books[Number(m0[1]) - 1] || {}).id : m0[1].toUpperCase();
+    if (!book) return null;
+    let m = m0[2].match(/^(\d+)$/);
+    if (m) return passageById[`${book}.${Number(m[1])}`] ? `#/read/${book}.${Number(m[1])}` : null;
+    m = m0[2].match(/^(def|post|cn)(\d)?\.?(\d+)$/i);
     if (m) {
       const kind = { def: 'Def', post: 'Post', cn: 'CN' }[m[1].toLowerCase()];
-      const p = passageById[`I.${kind}`];
-      const n = Number(m[2]);
-      return p && n >= 1 && n <= p.paragraphs.length ? `#/read/I.${kind}?p=${n}` : null;
+      const p = passageById[`${book}.${kind}${m[2] || ''}`] || (!m[2] && passageById[`${book}.${kind}1`]);
+      const n = Number(m[3]);
+      return p && n >= 1 && n <= p.count ? `#/read/${p.id}?p=${n}` : null;
     }
     return null;
   }
@@ -658,10 +749,11 @@
       case 'copy-passage': {
         closeOverlay(ov);
         const p = passageById[currentRoute.passage];
+        if (!loaded(p)) return;
         copy(p.paragraphs.map((x) => (x.cite ? x.cite + ' ' : '') + x.text).join('\n\n') + `\n\n(Euclid, Elements ${p.id})`);
         return;
       }
-      case 'copy-attribution': copy('Greek text: Euclid, Elements, Heiberg edition, digital transcription derived from Perseus Digital Library canonical Greek resources, used under CC BY-SA 4.0. Modifications and token annotations by the Stoicheia Reader project.'); return;
+      case 'copy-attribution': copy('Greek text: Euclid, Elements, Heiberg edition; English translation: T. L. Heath. Both from the Perseus Digital Library, used under CC BY-SA 4.0. Modifications and token annotations by the Stoicheia Reader project.'); return;
       case 'close-overlay': closeOverlay(ov); settingsEl = null; return;
       case 'close-dialog': if (e.target === act || act.tagName === 'BUTTON') closeOverlay(ov); return;
       case 'bookmark': {
@@ -679,7 +771,7 @@
       case 'toggle-gloss': saveSettings({ gloss: !settings.gloss }); return;
       case 'copy-token': {
         const { para, sp } = tokenIndex[selected];
-        const an = C.analyses[sp.a];
+        const an = analysis(sp.a);
         copy(`${para.text.slice(sp.s, sp.e)} - ${an.lemma} - ${an.flat}`);
         return;
       }

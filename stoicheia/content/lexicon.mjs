@@ -378,23 +378,23 @@ export const FORMS = {
   'δύο#gen': ['δύο', 'M gen f p'],
 };
 
-const POS = {
+export const POS = {
   V: 'verb', N: 'noun', A: 'adjective', T: 'article', R: 'pronoun', M: 'numeral',
-  P: 'preposition', C: 'conjunction', D: 'adverb', X: 'particle',
+  P: 'preposition', C: 'conjunction', D: 'adverb', X: 'particle', I: 'interjection', U: 'not yet analysed',
 };
-const WORD = {
-  ind: 'indicative', sub: 'subjunctive', imp: 'imperative', inf: 'infinitive', ptc: 'participle',
-  pres: 'present', impf: 'imperfect', aor: 'aorist', perf: 'perfect',
+export const WORD = {
+  ind: 'indicative', sub: 'subjunctive', opt: 'optative', imp: 'imperative', inf: 'infinitive', ptc: 'participle',
+  pres: 'present', impf: 'imperfect', fut: 'future', aor: 'aorist', perf: 'perfect', plpf: 'pluperfect', futperf: 'future perfect',
   act: 'active', mid: 'middle', pas: 'passive', mp: 'middle/passive',
   1: 'first person', 2: 'second person', 3: 'third person',
-  nom: 'nominative', gen: 'genitive', dat: 'dative', acc: 'accusative',
-  m: 'masculine', f: 'feminine', n: 'neuter', s: 'singular', p: 'plural',
-  comp: 'comparative', '+gen': 'with genitive', '+dat': 'with dative', '+acc': 'with accusative', elided: 'elided',
+  nom: 'nominative', gen: 'genitive', dat: 'dative', acc: 'accusative', voc: 'vocative',
+  m: 'masculine', f: 'feminine', n: 'neuter', c: 'common gender', s: 'singular', p: 'plural', du: 'dual',
+  comp: 'comparative', sup: 'superlative', '+gen': 'with genitive', '+dat': 'with dative', '+acc': 'with accusative', elided: 'elided',
 };
-const GROUPS = {
-  mood: ['ind', 'sub', 'imp', 'inf', 'ptc'], tense: ['pres', 'impf', 'aor', 'perf'],
-  voice: ['act', 'mid', 'pas', 'mp'], person: ['1', '2', '3'], case: ['nom', 'gen', 'dat', 'acc'],
-  gender: ['m', 'f', 'n'], number: ['s', 'p'], degree: ['comp'], gov: ['+gen', '+dat', '+acc'], elided: ['elided'],
+export const GROUPS = {
+  mood: ['ind', 'sub', 'opt', 'imp', 'inf', 'ptc'], tense: ['pres', 'impf', 'fut', 'aor', 'perf', 'plpf', 'futperf'],
+  voice: ['act', 'mid', 'pas', 'mp'], person: ['1', '2', '3'], case: ['nom', 'gen', 'dat', 'acc', 'voc'],
+  gender: ['m', 'f', 'n', 'c'], number: ['s', 'p', 'du'], degree: ['comp', 'sup'], gov: ['+gen', '+dat', '+acc'], elided: ['elided'],
 };
 
 // Turns a feature-code string into structured features plus the two human-readable lines
@@ -423,7 +423,7 @@ export function describe(code) {
     line1 = join('preposition', w('gov'));
     line2 = f.elided ? 'elided before a vowel' : '';
     flat = line1.replaceAll(' · ', ' ');
-  } else if (['C', 'D', 'X'].includes(pos)) {
+  } else if (['C', 'D', 'X', 'I', 'U'].includes(pos)) {
     line1 = POS[pos];
     flat = line1;
   } else {

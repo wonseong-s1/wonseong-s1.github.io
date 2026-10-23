@@ -1,5 +1,6 @@
-// Prototype corpus: Euclid, Elements, Book I (Heiberg text tradition).
-// Typed for the prototype; replace with the Perseus TEI transcription before release (spec §13).
+// Hand-checked passages: Euclid, Elements, Book I definitions 1–16, postulates, common notions 1–5 and I.1–I.3.
+// These override the automatic first pass in content/elements/ for the same items; everything else in
+// the Elements comes from there (see tools/import_perseus.py).
 //
 // Authoring notes
 //   word#variant  picks a context-specific analysis from lexicon.mjs (the "#variant" is not displayed)
@@ -12,10 +13,6 @@ export const WORK = {
   author: 'Euclid',
   edition: 'Heiberg (1883–1888)',
 };
-
-export const BOOKS = [
-  { id: 'I', n: 1, title: 'Book I', greekTitle: 'Στοιχείων Εὐκλείδου αʹ', summary: 'Definitions, postulates, 48 propositions' },
-];
 
 export const PASSAGES = [
   {
@@ -38,7 +35,6 @@ export const PASSAGES = [
       'Κύκλος ἐστὶ σχῆμα ἐπίπεδον ὑπὸ μιᾶς γραμμῆς περιεχόμενον [ἣ καλεῖται περιφέρεια], πρὸς#acc ἣν ἀφ’ ἑνὸς σημείου τῶν#n ἐντὸς τοῦ σχήματος κειμένων#n πᾶσαι αἱ προσπίπτουσαι εὐθεῖαι [πρὸς#acc τὴν τοῦ#m κύκλου περιφέρειαν] ἴσαι ἀλλήλαις εἰσίν.',
       'Κέντρον δὲ τοῦ#m κύκλου τὸ σημεῖον καλεῖται.',
     ],
-    planned: 'I.Def.17–23 planned',
   },
   {
     id: 'I.Post', book: 'I', kind: 'postulates', title: 'Postulates', greekTitle: 'Αἰτήματα',
@@ -94,7 +90,6 @@ export const PASSAGES = [
 ];
 
 // Planned items shown muted in Book Contents (never clickable).
-export const PLANNED = { propositions: 'I.4 – I.48 planned', next: 'I.4 planned' };
 
 // Original data-driven figures (spec §9). Coordinates in figure units, y up.
 export const FIGURES = {
