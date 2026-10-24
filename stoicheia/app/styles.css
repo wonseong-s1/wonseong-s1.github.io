@@ -1,3 +1,7 @@
+@font-face { font-family: 'Noto Sans'; font-weight: 400; font-display: swap; src: url(fonts/notosans-400-greek.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
+@font-face { font-family: 'Noto Sans'; font-weight: 400; font-display: swap; src: url(fonts/notosans-400-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: 'Noto Sans'; font-weight: 700; font-display: swap; src: url(fonts/notosans-700-greek.woff2) format('woff2'); unicode-range: U+0370-03FF, U+1F00-1FFF; }
+@font-face { font-family: 'Noto Sans'; font-weight: 700; font-display: swap; src: url(fonts/notosans-700-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
 @font-face { font-family: 'Gentium Plus'; font-weight: 400; font-display: swap; src: url(fonts/gentium-400-greek.woff2) format('woff2'); unicode-range: U+0370-03FF; }
 @font-face { font-family: 'Gentium Plus'; font-weight: 400; font-display: swap; src: url(fonts/gentium-400-greekext.woff2) format('woff2'); unicode-range: U+1F00-1FFF; }
 @font-face { font-family: 'Gentium Plus'; font-weight: 400; font-display: swap; src: url(fonts/gentium-400-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F; }
@@ -6,30 +10,41 @@
 @font-face { font-family: 'Gentium Plus'; font-weight: 700; font-display: swap; src: url(fonts/gentium-700-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F; }
 
 :root {
-  --paper: #F7F4EC;
+  --paper: #FFFFFF;
   --surface: #FFFFFF;
-  --ink: #20211F;
-  --muted: #6B6A63;
-  --slate: #2F4A60;
-  --selection: #EEE3B9;
-  --hairline: rgba(32, 33, 31, 0.12);
-  --scrim: rgba(20, 20, 18, 0.28);
-  --shadow: 0 -6px 24px rgba(20, 20, 18, 0.12);
-  --greek: 'Gentium Plus', 'Gentium Book Plus', serif;
+  --ink: #111111;
+  --muted: #555555;
+  --slate: #1A56A8;
+  --parse: #8A3B12;
+  --selection: #FFE680;
+  --hairline: rgba(0, 0, 0, 0.12);
+  --scrim: rgba(0, 0, 0, 0.3);
+  --shadow: 0 -6px 24px rgba(0, 0, 0, 0.12);
+  --greek: 'Noto Sans', Roboto, 'Segoe UI', sans-serif;
   --ui: system-ui, Roboto, 'Segoe UI', sans-serif;
   --text-size: 22px;
   --line: 1.55;
   --pad: 20px;
   color-scheme: light;
 }
+:root[data-font="serif"] { --greek: 'Gentium Plus', 'Gentium Book Plus', serif; }
+:root[data-theme="paper"] {
+  --paper: #F7F4EC;
+  --ink: #20211F;
+  --muted: #5F5E57;
+  --slate: #2F4A60;
+  --selection: #EEE3B9;
+  --hairline: rgba(32, 33, 31, 0.12);
+}
 :root[data-theme="dark"] {
-  --paper: #1D1C19;
-  --surface: #26251F;
-  --ink: #E4DED0;
-  --muted: #A19C8F;
-  --slate: #A7BCCD;
-  --selection: #5B4F2B;
-  --hairline: rgba(228, 222, 208, 0.14);
+  --paper: #121212;
+  --surface: #1E1E1E;
+  --ink: #EDEDED;
+  --muted: #ABABAB;
+  --slate: #8AB4F8;
+  --parse: #F2A97E;
+  --selection: #6B5A12;
+  --hairline: rgba(255, 255, 255, 0.14);
   --scrim: rgba(0, 0, 0, 0.45);
   --shadow: 0 -6px 24px rgba(0, 0, 0, 0.4);
   color-scheme: dark;
@@ -109,7 +124,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .plabel { font-size: 13px; letter-spacing: 0.08em; color: var(--muted); margin: 8px 0 14px; }
 .text { font-family: var(--greek); font-size: var(--text-size); line-height: var(--line); font-kerning: normal; }
 .text p { margin: 0 0 0.8em; }
-.text .enun { font-size: calc(var(--text-size) * 1.09); font-weight: 700; }
+.text .enun { font-weight: 700; }
 .item { margin-bottom: 1em; }
 .text .en { font-family: var(--ui); font-size: calc(var(--text-size) * 0.72); line-height: 1.5; color: var(--muted); margin: 0.25em 0 0.9em; font-weight: 400; }
 .item .en { margin: 0.3em 0 0; }
@@ -121,6 +136,16 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .w { cursor: pointer; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 @media (hover: hover) { .w:hover { text-decoration: underline; text-decoration-color: var(--hairline); text-underline-offset: 4px; } }
 .w.sel { background: var(--selection); box-shadow: 0 0 0 2px var(--selection); }
+
+/* Interlinear: each word is a column of Greek, short gloss and grammar code */
+.ilin { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.7em 0.55em; line-height: 1.25; margin: 0 0 1.1em; }
+.iw { display: inline-flex; flex-direction: column; padding: 2px 3px; border-radius: 6px; }
+.iw .g { font-family: var(--greek); font-size: var(--text-size); color: var(--ink); white-space: nowrap; }
+.enun .iw .g { font-weight: 700; }
+.iw .gl { font-family: var(--ui); font-size: max(12.5px, calc(var(--text-size) * 0.56)); color: var(--muted); max-width: 9em; margin-top: 2px; }
+.iw .ps { font-family: var(--ui); font-size: max(11px, calc(var(--text-size) * 0.5)); font-weight: 600; letter-spacing: 0.02em; color: var(--parse); margin-top: 1px; }
+.iw.lbl .g { color: var(--slate); }
+.item .ilin { margin: 0; }
 :root[data-contrast="high"] .w.sel { background: var(--ink); color: var(--paper); box-shadow: 0 0 0 2px var(--ink); }
 .figure-inline { display: block; width: 100%; margin: 4px 0 20px; padding: 8px 0; border-radius: 12px; }
 .figure-inline:hover { background: var(--hairline); }

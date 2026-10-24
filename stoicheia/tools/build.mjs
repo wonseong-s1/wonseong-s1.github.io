@@ -8,7 +8,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { WORK, PASSAGES, FIGURES } from '../content/corpus.mjs';
-import { LEMMAS, FORMS, POS, WORD, GROUPS, describe } from '../content/lexicon.mjs';
+import { LEMMAS, FORMS, GLOSSES as EUCLID, POS, WORD, GROUPS, describe } from '../content/lexicon.mjs';
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII'];
 const elementsDir = new URL('../content/elements/', import.meta.url);
@@ -153,7 +153,7 @@ if (errors.length) {
 const lemmas = {};
 for (const l of [...usedLemmas].sort()) {
   const h = LEMMAS[l] || {};
-  const gloss = h.gloss || GLOSSES[l];
+  const gloss = h.gloss || EUCLID[l] || GLOSSES[l];
   lemmas[l] = { ...(gloss ? { gloss } : {}), ...(h.pp ? { pp: h.pp } : {}) };
 }
 
