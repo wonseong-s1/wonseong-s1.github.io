@@ -105,7 +105,7 @@
     root.dataset.contrast = settings.contrast;
     root.style.setProperty('--text-size', settings.size + 'px');
     root.style.setProperty('--line', { compact: 1.4, normal: 1.55, relaxed: 1.75 }[settings.spacing]);
-    $('meta[name=theme-color]').content = { dark: '#121212', paper: '#F7F4EC', light: '#FFFFFF' }[theme];
+    $('meta[name=theme-color]').content = { dark: '#121212', paper: '#F4F1EA', light: '#FFFFFF' }[theme];
     keepAwake(settings.awake);
   }
   darkQuery.addEventListener('change', applySettings);
@@ -173,24 +173,29 @@
   addEventListener('popstate', () => route(true));
   addEventListener('hashchange', () => route(true));
 
+  // What each book is about, so the list says more than a number
+  const SUBJECT = {
+    I: 'Triangles, parallels and area', II: 'Rectangles and squares', III: 'Circles', IV: 'Polygons in and around circles',
+    V: 'Ratio and proportion', VI: 'Similar figures', VII: 'Numbers, primes and divisors', VIII: 'Numbers in continued proportion',
+    IX: 'Squares, cubes, primes and perfect numbers', X: 'Incommensurable lines', XI: 'Solid geometry',
+    XII: 'Circles, pyramids, cones and spheres', XIII: 'The five regular solids',
+  };
   // ---------- Books ----------
   function renderBooks(backward) {
-    const hint = !store.get('hintSeen', false);
     const cont = position && passageById[position.passage];
     const contText = cont ? firstWordsAt(cont, position.para) : '';
     const marks = bookmarks.filter((id) => passageById[id]);
     app.innerHTML = `
-      <header class="bar"><div class="title left">Στοιχεῖα</div>${icon('more', 'More', 'data-act="books-menu"')}</header>
+      <header class="bar"><span class="spacer"></span>${icon('more', 'More', 'data-act="books-menu"')}</header>
       <main class="screen ${backward ? 'back' : ''}">
-        <div class="lib-head"><div class="greek">${esc(C.work.title)}</div><div class="meta">Greek text with English · offline</div></div>
+        <div class="lib-head"><h1 lang="grc">${esc(C.work.title)}</h1><p>Euclid's Elements in Heiberg's Greek, with Heath's English. Tap a word to see its dictionary form and grammar.</p></div>
         ${cont ? `<button class="card" data-act="continue">
-            <div class="row1"><span class="label">CONTINUE READING</span><span class="meta">${position.pct || 0}%</span></div>
+            <div class="row1"><span class="label">Continue reading</span><span class="meta">${position.pct || 0}%</span></div>
             <div class="cite">${esc(citeOf(cont, position.para))}</div>
             <div class="greek">${esc(contText)}</div></button>` : ''}
-        ${hint ? `<div class="hint" role="note"><span>Tap any Greek word to parse it.</span><button class="textbtn" data-act="hint-ok">OK</button></div>` : ''}
         <div class="section">Books</div>
         <ul class="list">${C.books.map((b) => `<li><button class="rowbtn" data-go="#/book/${b.id}">
-            <span class="main"><span class="primary">${esc(b.title)}</span><div class="secondary">${esc(b.summary)}</div></span><span class="chev">›</span></button></li>`).join('')}</ul>
+            <span class="main"><span class="primary">${esc(b.title)}</span><div class="secondary">${esc(SUBJECT[b.id] ? `${SUBJECT[b.id]} · ${b.summary.split(', ').pop()}` : b.summary)}</div></span><span class="chev">›</span></button></li>`).join('')}</ul>
         ${marks.length ? `<div class="section">Bookmarks</div><ul class="list">${marks.map((id) => `<li><button class="rowbtn" data-go="#/read/${id}">
             <span class="main"><span class="primary">${esc(passageLabel(passageById[id]))}</span><div class="secondary greek">${esc(passageById[id].firstWords)}</div></span><span class="chev">›</span></button></li>`).join('')}</ul>` : ''}
       </main>`;
@@ -259,9 +264,41 @@
     } else out = (POS_ABBR[pos] || pos) + (cng ? '-' + cng : '') + (f.degree ? '-' + f.degree[0].toUpperCase() : '');
     return (abbrCache[code] = out);
   }
-  function shortGloss(a) {
+  // The interlinear line shows the sense that fits the form: "(pass. ptc.) given" for δοθείσης,
+  // "to construct" for συστήσασθαι, "let be drawn" for ἤχθω.
+  const TAGS = { 'pass. ptc.': ['ptc', 'pas'], 'perf. ptc.': ['ptc', 'perf'], 'ptc.': ['ptc'], 'perf.': ['perf'], 'pass.': ['pas'], 'mid.': ['mid'], 'comp.': ['comp'] };
+  const has = (codes, need) => need.every((n) => codes.includes(n) || (n === 'pas' && codes.includes('mp')) || (n === 'mid' && codes.includes('mp')));
+  const PP = { cut: 'cut', draw: 'drawn', give: 'given', set: 'set', take: 'taken', make: 'made', put: 'put', lay: 'laid', fall: 'fallen', find: 'found',
+    leave: 'left', lead: 'led', meet: 'met', bring: 'brought', show: 'shown', stand: 'stood', write: 'written', see: 'seen', know: 'known', say: 'said', have: 'had',
+    hold: 'held', begin: 'begun', throw: 'thrown', come: 'come', go: 'gone', become: 'become', lie: 'lain', fit: 'fitted', prove: 'proved' };
+  const pastPart = (w) => PP[w] || (/e$/.test(w) ? w + 'd' : /[^aeiou]y$/.test(w) ? w.slice(0, -1) + 'ied' : w + 'ed');
+  const ingForm = (w) => ({ be: 'being', cut: 'cutting', set: 'setting', put: 'putting', fit: 'fitting', begin: 'beginning', run: 'running', step: 'stepping', lie: 'lying' })[w]
+    || (/[^e]e$/.test(w) ? w.slice(0, -1) + 'ing' : w + 'ing');
+  const glossCache = {};
+  function shortGloss(a, code) {
+    const key = a.lemma + '|' + code;
+    if (key in glossCache) return glossCache[key];
     const g = (C.lemmas[a.lemma] || {}).gloss;
-    return g ? g.split(/[,;]/)[0].trim() : a.lemma;
+    if (!g) return (glossCache[key] = a.lemma);
+    const codes = code.split(' ');
+    let best = null, plain = null, score = 0, bestTag = [];
+    for (const seg of g.split(';')) {
+      const m = seg.trim().match(/^\(([^)]*)\)\s*(.*)$/);
+      const tag = m && TAGS[m[1]];
+      if (tag) { if (has(codes, tag) && tag.length > score) { best = m[2]; score = tag.length; bestTag = tag; } } else if (plain == null) plain = m ? m[2] : seg;
+    }
+    let out = (best || plain || g).split(',')[0].replace(/\s*\([^)]*\)/g, '').trim();
+    if (codes[0] === 'V' && out && !bestTag.includes('ptc') && !bestTag.includes('pas') && /(ω|μαι|μι|ει)$/.test(a.lemma.normalize('NFD').replace(/\p{M}/gu, '')) && !/^(\S+(ing|ed)|let|to|it)\b/.test(out)) {
+      const [w, ...rest] = out.split(' ');
+      const tail = rest.length ? ' ' + rest.join(' ') : '';
+      // Middle-passive forms of ordinary verbs are passive in Euclid (ἐκβαλλόμεναι "produced"); deponents and "(mid.)" senses are not.
+      const passive = !bestTag.includes('mid') && (codes.includes('pas') || (codes.includes('mp') && (codes.includes('perf') || !/μαι$/.test(a.lemma.normalize('NFD').replace(/\p{M}/gu, '')))));
+      if (codes.includes('inf')) out = 'to ' + out;
+      else if (codes.includes('ptc')) out = w === 'be' && rest.length ? rest.join(' ') : passive ? pastPart(w) + tail : ingForm(w) + tail;
+      else if (w === 'be' && codes.includes('ind') && codes.includes('pres') && codes.includes('3')) out = (codes.includes('p') ? 'are' : 'is') + tail;
+      else if (codes.includes('imp') && codes.includes('3')) out = passive ? (w === 'be' ? 'let ' + out : 'let be ' + pastPart(w) + tail) : 'let ' + out;
+    }
+    return (glossCache[key] = out);
   }
   function interlinearHTML(para) {
     // Punctuation sticks to the word before it, an opening bracket to the word after it.
@@ -285,7 +322,7 @@
       const g = esc(l) + esc(para.text.slice(sp.s, sp.e)) + esc(trail);
       if (!sp.id) return `<span class="iw lbl"><span class="g">${g}</span></span>`;
       const a = analysis(sp.a);
-      return `<span class="iw w" data-t="${sp.id}"><span class="g">${g}</span><span class="gl">${esc(shortGloss(a))}</span><span class="ps">${parseAbbr(C.analyses[sp.a][1])}</span></span>`;
+      return `<span class="iw w" data-t="${sp.id}"><span class="g">${g}</span><span class="gl">${esc(shortGloss(a, C.analyses[sp.a][1]))}</span><span class="ps">${parseAbbr(C.analyses[sp.a][1])}</span></span>`;
     }).join('');
   }
   function paragraphHTML(para) {
@@ -331,14 +368,14 @@
     // Greek and English paragraphs don't line up one to one, so the English proof follows the Greek.
     const enBlock = en && p.english && p.english.length
       ? `<section class="en-block" lang="en"><h2>English translation</h2>${p.english.map((t) => `<p>${esc(t)}</p>`).join('')}</section>` : '';
-    const label = `${p.greekTitle.toUpperCase()} · ${p.id}`;
+    const heading = p.kind === 'proposition' ? `Proposition ${p.id.split('.').pop()}` : p.title;
     app.innerHTML = `
-      <header class="bar" id="rbar">${icon('back', 'Back to contents', 'data-act="back"')}<div class="title">${esc(p.id)}</div>
+      <header class="bar wide" id="rbar">${icon('back', 'Back to contents', 'data-act="back"')}<div class="title">${esc(p.id)}</div>
         <button class="icon ${marked ? 'on' : ''}" data-act="bookmark" aria-pressed="${marked}" aria-label="${marked ? 'Remove bookmark' : 'Bookmark'}" title="Bookmark"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.star}</svg></button>
         ${icon('more', 'More', 'data-act="reader-menu"')}</header>
       <main class="screen reader reader-wide ${backward ? 'back' : ''}">
         <article>
-          <div class="plabel">${esc(label)}</div>
+          <h1 class="ptitle">${esc(heading)} <span class="greek" lang="grc">${esc(p.greekTitle)}</span></h1>
           <div class="text" lang="grc" id="text">${body}</div>
           ${enBlock}
           <nav class="pnav" aria-label="Passages">
@@ -349,7 +386,6 @@
         <aside class="side">${p.figure ? `<button class="figure-inline" data-act="figure" aria-label="Open diagram">${figureSVG(C.figures[p.figure])}</button>` : ''}<div id="side-morph"></div></aside>
       </main>`;
     document.title = `${p.id} · Στοιχεῖα`;
-    store.set('hintSeen', true);
     // Where to land: an explicit item, the saved anchor for this passage, or the top.
     const saved = position && position.passage === p.id ? position : null;
     if (r.item) {
@@ -476,9 +512,9 @@
       ${showMore ? `<div class="more">
           ${settings.principalParts && lemma.pp ? `<h3>Principal parts</h3><p lang="grc">${esc(lemma.pp)}</p>` : ''}</div>` : ''}
       <div class="actions">
-        ${!isWide() && !expanded && lemma.pp && settings.principalParts ? '<button class="textbtn" data-act="expand">PRINCIPAL PARTS</button>' : ''}
-        <button class="textbtn" data-act="copy-token">COPY</button>
-        <button class="textbtn" data-act="toggle-gloss">${settings.gloss ? 'HIDE GLOSS' : 'SHOW GLOSS'}</button>
+        ${!isWide() && !expanded && lemma.pp && settings.principalParts ? '<button class="textbtn" data-act="expand">Principal parts</button>' : ''}
+        <button class="textbtn" data-act="copy-token">Copy</button>
+        <button class="textbtn" data-act="toggle-gloss">${settings.gloss ? 'Hide gloss' : 'Show gloss'}</button>
       </div></div>`;
   }
   function renderMorph(replace) {
@@ -710,10 +746,10 @@
       <p>Stoicheia Reader: read all thirteen books of Euclid's Elements in Greek with an English translation, and tap a form to see its lemma and grammatical analysis.</p>
       <h2 class="section">Credits</h2>
       <p>Greek text (Heiberg) and English translation (Heath) from the Perseus Digital Library, CC BY-SA 4.0. Word analyses are a first pass, being corrected by hand.</p>
-      <p>Diagrams: original vector reconstructions by the Stoicheia Reader project.</p>
-      <h2 class="section">Font</h2>
+      <p>The diagrams were drawn for this reader from Euclid's constructions.</p>
+      <h2 class="section">Fonts</h2>
       <p>Noto Sans © Google and Gentium Plus © SIL International, both under the SIL Open Font License 1.1.</p>
-      <button class="textbtn" data-act="copy-attribution">COPY ATTRIBUTION</button>
+      <button class="textbtn" data-act="copy-attribution">Copy attribution</button>
     </div>`, 'About');
   }
   function openJump() {
@@ -802,7 +838,6 @@
     switch (a) {
       case 'back': back(); return;
       case 'continue': if (position) go(`#/read/${position.passage}`); return;
-      case 'hint-ok': store.set('hintSeen', true); act.closest('.hint').remove(); return;
       case 'books-menu': openMenu([['Settings', 'settings'], ['Attribution &amp; About', 'about']]); return;
       case 'reader-menu': openMenu([[settings.layout === 'interlinear' ? 'Reading view' : 'Interlinear view', 'toggle-layout'], ['Jump to citation', 'jump'], ['Copy citation', 'copy-cite'], ['Copy passage', 'copy-passage'], ['Settings', 'settings'], ['About', 'about']]); return;
       case 'settings': closeOverlay(ov); openSettings(); return;

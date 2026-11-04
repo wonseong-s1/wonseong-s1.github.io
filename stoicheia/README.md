@@ -1,6 +1,6 @@
 # Στοιχεῖα Reader (web prototype)
 
-A working prototype of the app in `claude code/stoicheia_android_ui_spec.pdf`: read Euclid's Elements in Greek, tap any word to see its lemma and grammatical analysis, dismiss the sheet and keep reading.
+A working prototype of the app described in the Android UI spec (`stoicheia_android_ui_spec.pdf`): read Euclid's Elements in Greek, tap any word to see its lemma and grammatical analysis, dismiss the sheet and keep reading.
 
 It is built as an installable web app (PWA). It runs in any browser and installs to an Android home screen, where it opens full-screen and works offline. It covers spec milestones 0–2 plus most of milestone 4, so the interaction can be tried before writing the Kotlin/Compose app.
 
