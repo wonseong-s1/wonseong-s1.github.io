@@ -1,5 +1,5 @@
 // Offline-first: cache the whole app on install, serve from cache, refresh in the background.
-const CACHE = 'stoicheia-v3';
+const CACHE = 'stoicheia-v4';
 const FILES = [
   './', 'index.html', 'styles.css', 'app.js', 'corpus.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png',
   'fonts/gentium-400-greek.woff2', 'fonts/gentium-400-greekext.woff2', 'fonts/gentium-400-latin.woff2',
